@@ -8,7 +8,12 @@ import time
 import dtlpy as dl
 import numpy as np
 from pathlib import Path
+
+import pandas as pd
 from PIL import Image, ImageFile
+from aiohttp.web_routedef import static
+from dtlpy import entities
+from fontTools.varLib.cff import pd_blend_fields
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -44,16 +49,14 @@ class ClipAdapter(dl.BaseModelAdapter):
     """
 
     def load(self, local_path, **kwargs):
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.arch_name = self.configuration.get("model_name", "ViT-B/32")
+        self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if self.arch_name not in clip.available_models():
             raise ValueError(f"Model {self.arch_name} is not an available architecture for CLIP.")
-        self.model_name = "CLIP " + self.arch_name
-        self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
         model_filepath = os.path.join(local_path, self.weights_filename) if Path(
             self.weights_filename).stem not in clip.available_models() \
             else self.weights_filename
-
         self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device,
                                                 jit=False)  # TODO check that jit=false doesn't impact inference/embed
         if os.path.isfile(model_filepath) is True:  # and self.model.status != 'pre-trained':
@@ -62,7 +65,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         else:
             logger.info("No previously saved model found, loading from default pre-trained weights.")
         self.model.eval()
-        logger.info("Loaded model {} successfully".format(self.model_name))
+        logger.info(f"Loaded model CLIP {self.arch_name} successfully")
 
     def save(self, local_path, **kwargs):
         """ saves configuration and weights locally
@@ -74,25 +77,47 @@ class ClipAdapter(dl.BaseModelAdapter):
         torch.save({'model_state_dict': self.model.state_dict()}, model_path)
         logger.info("Model saved to {}".format(model_path))
 
+    def prepare_item_func(self, item: entities.Item):
+        if item.mimetype == 'image/*':
+            item_object = item.download(save_locally=False, to_array=True)
+        elif item.mimetype == 'text/*':
+            item_object = item.download(save_locally=False).read().decode()
+        else:
+            item_object = item
+        return item_object
+
     def embed(self, batch, **kwargs):
+        hyde_model_name = self.configuration.get('hyde_model_name')
+
         embeddings = []
         with torch.no_grad():
             for item in batch:
-                if isinstance(item, str):
+                if isinstance(item, str):  # TODO see if a prompt item can be embedded
                     text = item
                     tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
                     features = self.model.encode_text(tokens)
-                elif isinstance(item, np.ndarray):
+                elif isinstance(item, np.ndarray): # TODO check that the type is correct
                     item_img = Image.fromarray(item)
                     image = self.preprocess(item_img).unsqueeze(0).to(self.device)
                     features = self.model.encode_image(image)
                 else:
-                    raise ValueError(f'Unsupported mimetype for CLIP: {type(item)}')
+                    try: # TODO finish making this work for prompt items
+                        prompt_item = dl.PromptItem.from_item(item)
+                        messages = prompt_item.to_messages(include_assistant=False)[-1]
+                        if messages['content'][-1]['mimetype'] == 'image/*': # TODO check if this actually works for prompt items
+                            image = self.preprocess(Image.open(messages['content'][-1]['value'])).unsqueeze(0).to(
+                                self.device)
+                            features = self.model.encode_image(image)
+                        text = messages['content'][-1]['text']
+                    except ValueError as e:
+                        logger.error(
+                            f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Continuing.')
                 embedding = features[0].cpu().detach().numpy().tolist()
                 embeddings.append(embedding)
         return embeddings
 
     def train(self, data_path, output_path, **kwargs):
+        self.model.to(device=self.device)
         self.model.train()
 
         batch_size = self.configuration.get('batch_size', 32)
@@ -110,7 +135,6 @@ class ClipAdapter(dl.BaseModelAdapter):
         early_stopping_epochs = self.configuration.get('early_stopping_epochs', 5)
         end_training = False
 
-        self.model.to(device=self.device)
         logger.info("Model set to train mode.")
 
         ################
@@ -246,20 +270,19 @@ class ClipAdapter(dl.BaseModelAdapter):
         #     image_paths.append(ClipAdapter._download_stream(item_file, overwrite))
 
         item_captions = []
-        json_files = (path / 'json').rglob("*.json")
-        for all_files, json_type in zip([json_files, image_paths], ['json', 'items']):
-            for src_file in all_files:
-                if json_type == 'json':
-                    with open(src_file, 'r') as f:
-                        data = json.load(f)
-                    if len(data['annotations']) > 0:
-                        annot = data['annotations'][0]
-                        if annot['label'] == 'free-text':
-                            item_captions.append(annot.get('coordinates', ''))
-                        else:
-                            raise TypeError(f"No free-text annotation found in json file {src_file}. Please check annotation type.")
-                    else:
-                        raise ValueError(f"No annotations found in json file {src_file} to use as image caption.")
+        annots_files = (path / 'json').rglob("*.json")
+        for src_file in annots_files:
+            with open(src_file, 'r') as f:
+                data = json.load(f)
+            if len(data['annotations']) > 0:
+                annot = data['annotations'][0]
+                if annot['label'] == 'free-text':
+                    item_captions.append(annot.get('coordinates', ''))
+                else:
+                    raise TypeError(
+                        f"No free-text annotation found in json file {src_file}. Please check annotation type.")
+            else:
+                raise ValueError(f"No annotations found in json file {src_file} to use as image caption.")
 
         for root, dirs, files in os.walk(data_path, topdown=False):
             for dir_name in dirs:

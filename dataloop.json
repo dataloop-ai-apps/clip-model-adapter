@@ -6,6 +6,8 @@
   "scope": "public",
   "attributes": {
     "Category": "Model",
+    "Hub": "Dataloop",
+    "Deployed By": "Dataloop",
     "Provider": "Open AI",
     "License": "MIT",
     "NLP": "Embeddings",
@@ -110,14 +112,19 @@
         "scope": "project",
         "status": "pre-trained",
         "inputType": "image",
-        "outputType": "text",
         "configuration": {
           "model_name": "ViT-B/32",
           "embeddings_size": 512,
           "batch_size": 32,
           "num_epochs": 100,
           "early_stopping": true,
-          "early_stopping_epochs": 5
+          "early_stopping_epochs": 5,
+          "learning_rate": 0.0001,
+          "betas": [
+            0.9,
+            0.98
+          ],
+          "weight_decay": 0.2
         },
         "description": "OpenAI CLIP model for search with NLP"
       }

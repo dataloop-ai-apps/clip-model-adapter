@@ -43,13 +43,16 @@ Dataloop platform.
 
 ### Model Fine-tuning
 
-For training, the items need to be converted into prompt item objects with the image as the prompt
-and the corresponding caption as the response (which a text annotation).
+For training, **items must be converted into prompt item objects**, with the image as the prompt
+and the corresponding caption as the response (i.e. a text annotation).
 
-The easiest way to upload captions is to add them to image items as descriptions. The CLIP model adapter includes some
-functions that will assist in preparing the data for training.
 
-To upload items with captions from your local machine, prepare a csv that includes two columns: one for the image paths
+#### Data Preparation
+If you have images but no captions, please refer to the ["image captioning pipeline"](...), which provides a workflow for 
+using GenAI to generate captions for your images.
+
+
+To upload items with captions from your local machine, prepare a csv that includes two columns: one for the image names
 and one for the caption texts. Here's a code snippet for using the preprocessing functions:
 
 ```python
@@ -78,7 +81,7 @@ Click [here](https://developers.dataloop.ai/tutorials/model_management/ai_librar
 information.
 
 The basic configurations included are:
-
+* ```model_name```: architecture of the model (default: 'ViT-B/32', available options: 'RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px')
 * ```num_epochs```: number of epochs to train the model (default: 50)
 * ```batch_size```: batch size to be used during the training (default: 2)
 * ```device```: whether to train on ```cpu``` or ```cuda``` (default to automatic detection of whether the instance has
@@ -92,8 +95,8 @@ The basic configurations included are:
 
 ## Deployment
 
-After installing the pretrained model or fine-tuning it on your data, it is necessary to deploy it, so it can be used
-for prediction.
+After installing the pretrained model or fine-tuning it on your data, it is necessary to deploy the model in order for
+it to be available for prediction.
 
 ## Attribution
 
