@@ -111,7 +111,6 @@
         "moduleName": "clip-module",
         "scope": "project",
         "status": "pre-trained",
-        "inputType": "image",
         "configuration": {
           "model_name": "ViT-B/32",
           "embeddings_size": 512,
