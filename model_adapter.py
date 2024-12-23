@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image
 from dtlpy import entities
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torch.nn as nn
@@ -82,10 +82,12 @@ class ClipAdapter(dl.BaseModelAdapter):
         return item_object
 
     def embed(self, batch, **kwargs):
+        hyde_model_name = self.configuration.get('hyde_model_name')
+
         embeddings = []
         with torch.no_grad():
             for item in batch:
-                if isinstance(item, str):
+                if isinstance(item, str):  # TODO see if a prompt item can be embedded
                     text = item
                     tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
                     features = self.model.encode_text(tokens)
