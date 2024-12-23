@@ -82,12 +82,10 @@ class ClipAdapter(dl.BaseModelAdapter):
         return item_object
 
     def embed(self, batch, **kwargs):
-        hyde_model_name = self.configuration.get('hyde_model_name')
-
         embeddings = []
         with torch.no_grad():
             for item in batch:
-                if isinstance(item, str):  # TODO see if a prompt item can be embedded
+                if isinstance(item, str):
                     text = item
                     tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
                     features = self.model.encode_text(tokens)
