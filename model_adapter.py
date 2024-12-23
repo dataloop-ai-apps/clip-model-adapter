@@ -73,9 +73,9 @@ class ClipAdapter(dl.BaseModelAdapter):
         logger.info("Model saved to {}".format(model_path))
 
     def prepare_item_func(self, item: entities.Item):
-        if item.mimetype == 'image/*':
+        if 'image/' in item.mimetype:
             item_object = item.download(save_locally=False, to_array=True)
-        elif item.mimetype == 'text/*':
+        elif 'text/' in item.mimetype:
             item_object = item.download(save_locally=False).read().decode()
         else:
             item_object = item
@@ -96,6 +96,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                 else:
                     logger.info(
                             f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Skipping.')
+                    continue
                 embedding = features[0].cpu().detach().numpy().tolist()
                 embeddings.append(embedding)
         return embeddings
