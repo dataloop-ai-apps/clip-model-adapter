@@ -9,11 +9,8 @@ import dtlpy as dl
 import numpy as np
 from pathlib import Path
 
-import pandas as pd
-from PIL import Image, ImageFile
-from aiohttp.web_routedef import static
+from PIL import Image
 from dtlpy import entities
-from fontTools.varLib.cff import pd_blend_fields
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -22,8 +19,6 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
 logger = logging.getLogger('[CLIP-SEARCH]')
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
 
 # clip available models: ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px']
 
@@ -87,31 +82,20 @@ class ClipAdapter(dl.BaseModelAdapter):
         return item_object
 
     def embed(self, batch, **kwargs):
-        hyde_model_name = self.configuration.get('hyde_model_name')
-
         embeddings = []
         with torch.no_grad():
             for item in batch:
-                if isinstance(item, str):  # TODO see if a prompt item can be embedded
+                if isinstance(item, str):
                     text = item
                     tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
                     features = self.model.encode_text(tokens)
-                elif isinstance(item, np.ndarray): # TODO check that the type is correct
+                elif isinstance(item, np.ndarray):
                     item_img = Image.fromarray(item)
                     image = self.preprocess(item_img).unsqueeze(0).to(self.device)
                     features = self.model.encode_image(image)
                 else:
-                    try: # TODO finish making this work for prompt items
-                        prompt_item = dl.PromptItem.from_item(item)
-                        messages = prompt_item.to_messages(include_assistant=False)[-1]
-                        if messages['content'][-1]['mimetype'] == 'image/*': # TODO check if this actually works for prompt items
-                            image = self.preprocess(Image.open(messages['content'][-1]['value'])).unsqueeze(0).to(
-                                self.device)
-                            features = self.model.encode_image(image)
-                        text = messages['content'][-1]['text']
-                    except ValueError as e:
-                        logger.error(
-                            f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Continuing.')
+                    logger.info(
+                            f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Skipping.')
                 embedding = features[0].cpu().detach().numpy().tolist()
                 embeddings.append(embedding)
         return embeddings

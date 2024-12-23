@@ -1,5 +1,5 @@
 {
-  "name": "clip-model-pretrained",
+  "name": "clip-model-pretrained1",
   "displayName": "OpenAI CLIP",
   "description": "CLIP (Contrastive Language-Image Pretraining) model for retrieving the most relevant images given a text snippet. Copyright (c) 2021 OpenAI",
   "version": "0.1.0",
@@ -111,7 +111,6 @@
         "moduleName": "clip-module",
         "scope": "project",
         "status": "pre-trained",
-        "inputType": "image",
         "configuration": {
           "model_name": "ViT-B/32",
           "embeddings_size": 512,
