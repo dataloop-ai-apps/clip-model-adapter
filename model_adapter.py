@@ -1,5 +1,6 @@
 # batch_size must larger than 1
 
+import base64
 import os
 import clip
 import json
@@ -9,11 +10,9 @@ import dtlpy as dl
 import numpy as np
 from pathlib import Path
 
-import pandas as pd
 from PIL import Image, ImageFile
-from aiohttp.web_routedef import static
 from dtlpy import entities
-from fontTools.varLib.cff import pd_blend_fields
+from io import BytesIO
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -87,31 +86,20 @@ class ClipAdapter(dl.BaseModelAdapter):
         return item_object
 
     def embed(self, batch, **kwargs):
-        hyde_model_name = self.configuration.get('hyde_model_name')
-
         embeddings = []
         with torch.no_grad():
             for item in batch:
-                if isinstance(item, str):  # TODO see if a prompt item can be embedded
+                if isinstance(item, str):
                     text = item
                     tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
                     features = self.model.encode_text(tokens)
-                elif isinstance(item, np.ndarray): # TODO check that the type is correct
+                elif isinstance(item, np.ndarray):
                     item_img = Image.fromarray(item)
                     image = self.preprocess(item_img).unsqueeze(0).to(self.device)
                     features = self.model.encode_image(image)
                 else:
-                    try: # TODO finish making this work for prompt items
-                        prompt_item = dl.PromptItem.from_item(item)
-                        messages = prompt_item.to_messages(include_assistant=False)[-1]
-                        if messages['content'][-1]['mimetype'] == 'image/*': # TODO check if this actually works for prompt items
-                            image = self.preprocess(Image.open(messages['content'][-1]['value'])).unsqueeze(0).to(
-                                self.device)
-                            features = self.model.encode_image(image)
-                        text = messages['content'][-1]['text']
-                    except ValueError as e:
-                        logger.error(
-                            f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Continuing.')
+                    logger.info(
+                            f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Skipping.')
                 embedding = features[0].cpu().detach().numpy().tolist()
                 embeddings.append(embedding)
         return embeddings
@@ -325,3 +313,53 @@ class ClipAdapter(dl.BaseModelAdapter):
         for p in model.parameters():
             p.data = p.data.float()
             p.grad.data = p.grad.data.float()
+
+    @staticmethod
+    def get_last_prompt_message(messages):
+        for message in reversed(messages):
+            if message.get("role") == "user":
+                return message
+        raise ValueError("No message with role 'user' found")
+
+    @staticmethod
+    def reformat_messages(messages):
+        """
+        Reformat messages from prompt items to be used in the embed function
+
+        If images are present, the item will be embedded as an image. Multiple images are not supported.
+        :param messages:
+        :return:
+        """
+        # In case of multiple messages,
+        # we assume the last user message contains the image of interest
+        last_user_message = ClipAdapter.get_last_prompt_message(messages)
+
+        prompt_txt = None
+        image_buffer = None
+
+        # The last user message may contain multiple contents,
+        # such as a text component and an image component
+        # or multiple text components (e.g., multiple questions)
+        for content in last_user_message["content"]:
+            content_type = content.get("type", None)
+            if content_type is None:
+                raise ValueError("Message content type not found")
+            if content_type == "text":
+                # Concatenate multiple text contents with space
+                new_text = content.get("text", "").strip()
+                if new_text:
+                    if prompt_txt is None:
+                        prompt_txt = new_text
+                    else:
+                        prompt_txt = f"{prompt_txt} {new_text}".strip()
+            elif content_type == "image_url":
+                image_url = content.get("image_url", {}).get("url")
+                if image_url is not None:
+                    if image_buffer is not None:  # i.e., we previously found an image
+                        raise ValueError("Multiple images not supported")
+                    else:
+                        base64_str = content["image_url"]["url"].split("base64,")[1]
+                        image_buffer = BytesIO(base64.b64decode(base64_str))
+            else:
+                raise ValueError(f"Unsupported content type: {content_type}")
+        return prompt_txt, image_buffer
