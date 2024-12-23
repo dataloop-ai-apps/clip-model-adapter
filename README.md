@@ -46,27 +46,6 @@ Dataloop platform.
 For training, **items must be converted into prompt item objects**, with the image as the prompt
 and the corresponding caption as the response (i.e. a text annotation).
 
-
-#### Data Preparation
-If you have images but no captions, please refer to the ["image captioning pipeline"](...), which provides a workflow for 
-using GenAI to generate captions for your images.
-
-
-To upload items with captions from your local machine, prepare a csv that includes two columns: one for the image names
-and one for the caption texts. Here's a code snippet for using the preprocessing functions:
-
-```python
-from model_adapter import ClipAdapter
-import dtlpy as dl
-
-project = dl.projects.get(project_id='<project_id>')
-dataset = project.datasets.create(dataset_name='<dataset_name>')
-success = ClipAdapter.upload_items_with_description(dataset=dataset, local_path='<path_to_csv>',
-                                                    image_col_name='<image_column_name>',
-                                                    text_col_name='<text_column_name>')
-prompt_dataset = ClipAdapter.convert_dataset_for_clip(dataset_src=dataset, filters=None, existing_subsets=True)
-```
-
 Make sure the dataset has training and validation subsets are defined in the prompt items dataset (see docs
 [here](https://developers.dataloop.ai/tutorials/model_management/marketplace/chapter/#define-dataset-subsets) for
 further SDK information, or use ML Data Split in the dataset browser of the Dataloop platform).
