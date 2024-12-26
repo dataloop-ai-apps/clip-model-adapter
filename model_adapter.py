@@ -10,7 +10,6 @@ import numpy as np
 from pathlib import Path
 
 from PIL import Image
-from dtlpy import entities
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 
@@ -19,6 +18,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
 logger = logging.getLogger('[openai-clip]')
+
 
 # clip available models: ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px']
 
@@ -52,8 +52,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         model_filepath = os.path.join(local_path, self.weights_filename) if Path(
             self.weights_filename).stem not in clip.available_models() \
             else self.weights_filename
-        self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device,
-                                                jit=False)  # TODO check that jit=false doesn't impact inference/embed
+        self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False)
         if os.path.isfile(model_filepath) is True:  # and self.model.status != 'pre-trained':
             checkpoint = torch.load(model_filepath, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -72,7 +71,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         torch.save({'model_state_dict': self.model.state_dict()}, model_path)
         logger.info("Model saved to {}".format(model_path))
 
-    def prepare_item_func(self, item: entities.Item):
+    def prepare_item_func(self, item: dl.Item):
         if 'image/' in item.mimetype:
             item_object = item.download(save_locally=False, to_array=True)
         elif 'text/' in item.mimetype:
@@ -95,7 +94,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                     features = self.model.encode_image(image)
                 else:
                     logger.info(
-                            f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Skipping.')
+                        f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Skipping.')
                     continue
                 embedding = features[0].cpu().detach().numpy().tolist()
                 embeddings.append(embedding)
@@ -126,8 +125,8 @@ class ClipAdapter(dl.BaseModelAdapter):
         # prepare data #
         ################
         # data should be prompt items of the image and one annotation of free-text
-        train_items, train_captions = self.get_images_and_text(os.path.join(data_path, 'train'))
-        val_items, val_captions = self.get_images_and_text(os.path.join(data_path, 'validation'))
+        train_items, train_captions = self.get_img_txt_pairs(os.path.join(data_path, 'train'))
+        val_items, val_captions = self.get_img_txt_pairs(os.path.join(data_path, 'validation'))
         train_dataset = ImageTextDataset(train_items, train_captions, self.preprocess)
         val_dataset = ImageTextDataset(val_items, val_captions, self.preprocess)
 
@@ -242,7 +241,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                                  f'Make sure there are items with annotations in the data subsets.')
 
     @staticmethod
-    def get_images_and_text(data_path, overwrite=False):
+    def get_img_txt_pairs(data_path, overwrite=False):
         logger.debug(f"Data path: {data_path}")
         path = Path(data_path)
         # list all downloaded prompt item jsons and download images from link
