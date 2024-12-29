@@ -1,0 +1,17 @@
+name: PR Validation Caller
+
+on:
+  pull_request_target:
+    branches:
+      - main
+
+jobs:
+  call-pr-validation:
+    uses: dataloop-ai-apps/workflows-manager/.github/workflows/pr_validation.yml@APPS-1390
+    with:
+      pr_number: ${{ github.event.number }}
+      pr_branch: ${{ github.event.pull_request.head.ref }}
+      repo_name: ${{ github.event.repository.name }}
+      repo_owner: ${{ github.event.repository.owner.login }}
+    secrets:
+      PAT_S_ORG: ${{ secrets.PAT_S_ORG }}
