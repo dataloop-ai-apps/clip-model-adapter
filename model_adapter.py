@@ -88,15 +88,16 @@ class ClipAdapter(dl.BaseModelAdapter):
                     text = item
                     tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
                     features = self.model.encode_text(tokens)
+                    embedding = features[0].cpu().detach().numpy().tolist()
                 elif isinstance(item, np.ndarray):
                     item_img = Image.fromarray(item)
                     image = self.preprocess(item_img).unsqueeze(0).to(self.device)
                     features = self.model.encode_image(image)
+                    embedding = features[0].cpu().detach().numpy().tolist()
                 else:
                     logger.info(
-                        f'Unsupported mimetype for CLIP: {type(item)}. Item ID {item.id} not embedded. Skipping.')
-                    continue
-                embedding = features[0].cpu().detach().numpy().tolist()
+                        f'Unsupported mimetype for CLIP: {type(item)}. Features not extracted for item ID {item.id}. Skipping.')
+                    embedding = list()  # TODO check that uploading an empty list doesn't create a feature
                 embeddings.append(embedding)
         return embeddings
 

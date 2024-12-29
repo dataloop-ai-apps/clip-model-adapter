@@ -74,8 +74,8 @@ class TestAdapter(unittest.TestCase):
             self.adapter.model.names, expected, "Model labels do not match expected labels."
         )
 
-    def test_embed(self):
-        """Test the adapter's item embedding."""
+    def test_prepare_item_func(self):
+        """Test the adapter's prepare item function."""
         file_names = ["test_img.jpg", "test_text.txt"]
         for file_name in file_names:
             with self.subTest(file_name=file_name):
@@ -93,15 +93,15 @@ class TestAdapter(unittest.TestCase):
         prompt_item = self.adapter.prepare_item_func(item)
         assert prompt_item is not None
 
-    def test_predict(self):
-        """Test the adapter's prediction functionality."""
-        file_names = ["test_1.jpg"]
+    def test_embed(self):
+        """Test the adapter's embedding functionality."""
+        file_names = ["test_img.png", "test_txt.txt"]
         self.adapter.load(local_path=".")
         for file_name in file_names:
             with self.subTest(file_name=file_name):
                 mock_item = MockItem()
-                image = self.adapter.prepare_item_func(item=mock_item)
-                results = self.adapter.predict([image])
+                item = self.adapter.prepare_item_func(item=mock_item)
+                results = self.adapter.embed([item])
                 expected = self.load_expected_output(
                     f"test_predict_{mock_item.file_name_no_ext}.pkl"
                 )

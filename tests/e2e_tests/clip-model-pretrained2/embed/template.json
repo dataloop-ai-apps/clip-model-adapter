@@ -1,65 +1,188 @@
 {
-  "projectId": null,
-  "orgId": null,
   "connections": [
     {
       "src": {
-        "nodeId": "fc6c28fb-7736-45bd-b6b2-02b54aedc68b",
-        "portId": "4757803f-9a00-48c0-a5f8-28c78281a904"
+        "nodeId": "345f64f5-8582-4800-8da4-da1d9b965a33",
+        "portId": "216c2d7e-434d-4779-ab51-ac62d9d4a9da"
       },
       "tgt": {
-        "nodeId": "002db81a-5f34-418d-b780-9928aee7468f",
-        "portId": "9a717ca3-bd33-4f3d-92fa-737fd03b8828"
+        "nodeId": "f8765073-9c14-4c9b-bc99-c70ee8a10f8d",
+        "portId": "a4f070ac-b797-4baa-aabd-0ba2c157f8fd"
       },
       "condition": "{}"
     },
     {
       "src": {
-        "nodeId": "002db81a-5f34-418d-b780-9928aee7468f",
-        "portId": "00312e63-7345-4939-a9f7-ff2be2f62abf"
+        "nodeId": "345f64f5-8582-4800-8da4-da1d9b965a33",
+        "portId": "117c87fd-5b14-4051-8cc4-470a656e47f5"
       },
       "tgt": {
-        "nodeId": "836573b1-5fc2-4a49-b605-087a4fae7370",
-        "portId": "3155b3a1-98c7-4b7a-bc67-39632ca420c3"
+        "nodeId": "f8765073-9c14-4c9b-bc99-c70ee8a10f8d",
+        "portId": "6e1a0535-2873-41f7-92b9-b3f3e758de6b"
+      },
+      "condition": "{}"
+    },
+    {
+      "src": {
+        "nodeId": "b76096d9-3b91-44e3-99e9-3504c49c560a",
+        "portId": "a7c6ba77-6bc0-47a2-a33a-9bafc823d68f"
+      },
+      "tgt": {
+        "nodeId": "345f64f5-8582-4800-8da4-da1d9b965a33",
+        "portId": "fb16db6b-8b50-487a-99df-fa582ce14661"
       },
       "condition": "{}"
     }
   ],
   "startNodes": [
     {
-      "nodeId": "fc6c28fb-7736-45bd-b6b2-02b54aedc68b",
+      "nodeId": "b76096d9-3b91-44e3-99e9-3504c49c560a",
       "type": "root",
-      "id": "167e796f-5040-43e7-92f1-774153428b52"
+      "id": "a6fb66d0-5101-4be1-89da-2e866a51da1a"
     }
   ],
   "variables": [
     {
       "name": "model",
       "type": "Model",
-      "description": null
+      "description": "Model used for embedding ",
+      "value": "$var(model__model)"
     },
     {
       "name": "dataset",
       "type": "Dataset",
-      "description": null
-    },
-    {
-      "name": "label",
-      "type": "String",
-      "description": null,
-      "value": "car"
+      "description": "Dataset source for embedding",
+      "value": "$var(dataset__dataset)"
     }
   ],
   "description": "",
-  "name": "Embeddings",
+  "name": "e2e testing clip embed",
   "templateKind": "org",
   "nodes": [
     {
-      "id": "002db81a-5f34-418d-b780-9928aee7468f",
+      "id": "b76096d9-3b91-44e3-99e9-3504c49c560a",
       "inputs": [
         {
-          "portId": "9a717ca3-bd33-4f3d-92fa-737fd03b8828",
-          "nodeId": "9a717ca3-bd33-4f3d-92fa-737fd03b8828",
+          "portId": "f20c5d32-8841-40d4-99fe-40aa2abaa44f",
+          "nodeId": "f20c5d32-8841-40d4-99fe-40aa2abaa44f",
+          "type": "Dataset",
+          "name": "dataset",
+          "displayName": "dataset",
+          "variableName": "dataset",
+          "io": "input"
+        },
+        {
+          "portId": "50e381c4-526b-4ec9-b228-ce06cd5fbd9b",
+          "nodeId": "50e381c4-526b-4ec9-b228-ce06cd5fbd9b",
+          "type": "Model",
+          "name": "model",
+          "displayName": "model",
+          "variableName": "model",
+          "io": "input"
+        }
+      ],
+      "outputs": [
+        {
+          "portId": "a7c6ba77-6bc0-47a2-a33a-9bafc823d68f",
+          "nodeId": "a7c6ba77-6bc0-47a2-a33a-9bafc823d68f",
+          "type": "Item[]",
+          "name": "items",
+          "displayName": "items",
+          "io": "output"
+        }
+      ],
+      "name": "code",
+      "type": "code",
+      "namespace": {
+        "functionName": "run",
+        "packageName": "",
+        "serviceName": ""
+      },
+      "config": {
+        "package": {
+          "code": "import dtlpy as dl\n\n\nclass ServiceRunner:\n\n    def run(self, dataset, model):\n        items = list(dataset.items.list().all())\n        return items",
+          "name": "run",
+          "type": "code",
+          "codebase": {
+            "type": "item"
+          }
+        }
+      },
+      "metadata": {
+        "position": {
+          "x": 10209.000015258789,
+          "y": 10135.000003814697,
+          "z": 0
+        },
+        "componentGroupName": "automation",
+        "codeApplicationName": "e2e-test-clip-embed-pre",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "f8765073-9c14-4c9b-bc99-c70ee8a10f8d",
+      "inputs": [
+        {
+          "portId": "a4f070ac-b797-4baa-aabd-0ba2c157f8fd",
+          "nodeId": "a4f070ac-b797-4baa-aabd-0ba2c157f8fd",
+          "type": "Item",
+          "name": "item",
+          "displayName": "item",
+          "io": "input"
+        },
+        {
+          "portId": "6e1a0535-2873-41f7-92b9-b3f3e758de6b",
+          "nodeId": "6e1a0535-2873-41f7-92b9-b3f3e758de6b",
+          "type": "Json",
+          "name": "vectors",
+          "displayName": "vectors",
+          "io": "input"
+        }
+      ],
+      "outputs": [
+        {
+          "portId": "57ea45e2-f063-417d-beb2-522c1a43ead6",
+          "nodeId": "57ea45e2-f063-417d-beb2-522c1a43ead6",
+          "type": "Item",
+          "name": "item",
+          "displayName": "item",
+          "io": "output"
+        }
+      ],
+      "name": "code",
+      "type": "code",
+      "namespace": {
+        "functionName": "run",
+        "packageName": "",
+        "serviceName": ""
+      },
+      "config": {
+        "package": {
+          "code": "import os\nimport logging\nimport dtlpy as dl\n\nlogger = logging.getLogger(\"e2e embed testing\")\n\nclass ServiceRunner:\n    def run(self, model, item):\n        project = item.project\n        feature_set = project.feature_sets.get(feature_set_name=model.name)\n        filters = dl.Filters(resource=dl.FiltersResource.FEATURE)\n        filters.add(field=\"featureSetId\", values=feature_set.id)\n\n        features = list(item.features.list(filters=filters).all())\n        if \"img_pass\" in item.name and len(features) == 1:\n            print(\"item 1 passed\")\n            tests_passed = True\n        elif \"text_pass\" in item.name and len(features) == 1:\n            print(\"item 2 passed\")\n            tests_passed = True\n        elif \"pdf_fail\" in item.name and len(features) == 0:\n            print(\"item 3 failed, as expected. pass\")\n            tests_passed = True\n        else:\n            print(f\"incorrect number of features for item {item.id}. tests failed\")\n            tests_passed = False\n        return tests_passed",
+          "name": "run",
+          "type": "code",
+          "codebase": {
+            "type": "item"
+          }
+        }
+      },
+      "metadata": {
+        "position": {
+          "x": 10859.136734008789,
+          "y": 10133.241214752197,
+          "z": 0
+        },
+        "componentGroupName": "automation",
+        "codeApplicationName": "e2e-test-clip-embed-post",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "345f64f5-8582-4800-8da4-da1d9b965a33",
+      "inputs": [
+        {
+          "portId": "fb16db6b-8b50-487a-99df-fa582ce14661",
+          "nodeId": "fb16db6b-8b50-487a-99df-fa582ce14661",
           "type": "Item",
           "name": "item",
           "displayName": "item",
@@ -68,19 +191,19 @@
       ],
       "outputs": [
         {
-          "portId": "00312e63-7345-4939-a9f7-ff2be2f62abf",
-          "nodeId": "00312e63-7345-4939-a9f7-ff2be2f62abf",
+          "portId": "216c2d7e-434d-4779-ab51-ac62d9d4a9da",
+          "nodeId": "216c2d7e-434d-4779-ab51-ac62d9d4a9da",
           "type": "Item",
           "name": "item",
           "displayName": "item",
           "io": "output"
         },
         {
-          "portId": "6c5593ae-571e-4729-9e06-b272309bdf4f",
-          "nodeId": "6c5593ae-571e-4729-9e06-b272309bdf4f",
-          "type": "Annotation[]",
-          "name": "annotations",
-          "displayName": "annotations",
+          "portId": "117c87fd-5b14-4051-8cc4-470a656e47f5",
+          "nodeId": "117c87fd-5b14-4051-8cc4-470a656e47f5",
+          "type": "Json",
+          "name": "json",
+          "displayName": "json",
           "io": "output"
         }
       ],
@@ -88,130 +211,22 @@
       "type": "ml",
       "namespace": {
         "functionName": "embed",
-        "projectName": null,
-        "serviceName": "model-mgmt-app-embeddings",
+        "projectName": "Model mgmt demo",
+        "serviceName": "embed-6751a79c9c68e25e70cc7f8e-mpom",
         "moduleName": "",
         "packageName": "model-mgmt-app"
       },
-      "projectId": null,
       "metadata": {
         "position": {
-          "x": 10000.0,
-          "y": 10000.0,
+          "x": 10522.000015258789,
+          "y": 10134.000003814697,
           "z": 0
         },
-        "serviceConfig": {
-        },
+        "componentGroupName": "models",
         "repeatable": true,
         "variableModel": "model",
-        "mlType": "genAi"
-      }
-    },
-    {
-      "id": "fc6c28fb-7736-45bd-b6b2-02b54aedc68b",
-      "inputs": [
-        {
-          "portId": "878d7c53-8d27-48c7-a592-70cbac5a3a10",
-          "nodeId": "878d7c53-8d27-48c7-a592-70cbac5a3a10",
-          "type": "Dataset",
-          "name": "dataset",
-          "displayName": "dataset",
-          "variableName": "dataset",
-          "io": "input"
-        }
-      ],
-      "outputs": [
-        {
-          "portId": "4757803f-9a00-48c0-a5f8-28c78281a904",
-          "nodeId": "4757803f-9a00-48c0-a5f8-28c78281a904",
-          "type": "Item",
-          "name": "item",
-          "displayName": "item",
-          "io": "output"
-        }
-      ],
-      "name": "preprocess",
-      "type": "code",
-      "namespace": {
-        "functionName": "run",
-        "projectName": null,
-        "serviceName": "",
-        "moduleName": null,
-        "packageName": ""
-      },
-      "projectId": null,
-      "config": {
-        "package": {
-          "code": "import dtlpy as dl\n\nclass ServiceRunner:\n    @staticmethod\n    def run(dataset: dl.Dataset):\n        # Define filters\n        filters = dl.Filters()\n        filters.add(field=\"metadata.tags.predict\", values=True)\n\n        # Get predict item\n        predict_item = list(dataset.items.list(filters=filters).all())[0]\n        predict_item.annotations.delete(filters=dl.Filters(resource=dl.FiltersResource.ANNOTATION))\n\n        return predict_item\n",
-          "name": "run",
-          "type": "code",
-          "codebase": {
-            "type": "item"
-          }
-        }
-      },
-      "metadata": {
-        "position": {
-          "x": 9500.0,
-          "y": 10000.0,
-          "z": 0
-        },
-        "repeatable": true
-      }
-    },
-    {
-      "id": "836573b1-5fc2-4a49-b605-087a4fae7370",
-      "inputs": [
-        {
-          "portId": "3155b3a1-98c7-4b7a-bc67-39632ca420c3",
-          "nodeId": "3155b3a1-98c7-4b7a-bc67-39632ca420c3",
-          "type": "Item",
-          "name": "item",
-          "displayName": "item",
-          "io": "input"
-        },
-        {
-          "portId": "c12a3c92-9bd3-4e32-8c9b-56da18c8c8a7",
-          "nodeId": "c12a3c92-9bd3-4e32-8c9b-56da18c8c8a7",
-          "type": "String",
-          "name": "label",
-          "displayName": "label",
-          "variableName": "label",
-          "io": "input"
-        }
-      ],
-      "outputs": [
-      ],
-      "name": "postprocess",
-      "type": "code",
-      "namespace": {
-        "functionName": "run",
-        "projectName": null,
-        "serviceName": "",
-        "moduleName": null,
-        "packageName": ""
-      },
-      "projectId": null,
-      "config": {
-        "package": {
-          "code": "import dtlpy as dl\n\nclass ServiceRunner:\n    @staticmethod\n    def run(item: dl.Item, model: dl.Model):\n        filters = dl.Filters(resource=dl.FiltersResource.FEATURE_SET)\n        filters.add(field=\"modelId\", values=model.id)\n        feature_sets_pages = item.project.feature_sets.list(filters=filters)\n\n        if feature_sets_pages.items_count == 0:\n            raise ValueError(f\"No Features Sets were found for Model: '{model.id}'\")\n        elif feature_sets_pages.items_count > 1:\n            raise ValueError(f\"Multiple Features Sets were found for Model: '{model.id}'\")\n        feature_set: dl.FeatureSet = list(feature_sets_pages.all())[0]\n\n        filters = dl.Filters(resource=dl.FiltersResource.FEATURE)\n        filters.add(field=\"featureSetId\", values=feature_set.id)\n        filters.add(field=\"entityId\", values=item.id)\n        features_pages = feature_set.features.list(filters=filters)\n\n        if features_pages.items_count == 0:\n            raise ValueError(f\"None of the Features in the Feature Sets was associated with the Item: '{item.id}'\")\n        elif features_pages.items_count > 1:\n            raise ValueError(f\"Multiple Features from the same model are associated with the Item: '{item.id}'\")\n        feature: dl.Feature = list(features_pages.all())[0]\n\n        if len(feature.value) == 0:\n            raise ValueError(f\"Feature Value is empty for Feature: '{feature.id}'\")\n",
-          "name": "run",
-          "type": "code",
-          "codebase": {
-            "type": "item"
-          }
-        }
-      },
-      "metadata": {
-        "position": {
-          "x": 10500.0,
-          "y": 10000.0,
-          "z": 0
-        },
-        "repeatable": true
+        "mlType": "embeddings"
       }
     }
-  ],
-  "preview": null,
-  "_id": null
+  ]
 }
