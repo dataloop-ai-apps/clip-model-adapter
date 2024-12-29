@@ -94,7 +94,7 @@ class TestAdapter(unittest.TestCase):
         assert prompt_item is not None
 
     def test_embed(self):
-        """Test the adapter's embedding functionality."""
+        """Test the adapter's embedding function."""
         file_names = ["test_img.png", "test_txt.txt"]
         self.adapter.load(local_path=".")
         for file_name in file_names:
