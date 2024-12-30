@@ -169,6 +169,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                 total_imgs = 0
                 correct_preds = 0
                 total_preds = 0
+                accuracy = 0
 
                 with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch} - {phase} phase: ") as tepoch:
                     for idx, batch in enumerate(tepoch):
@@ -177,13 +178,17 @@ class ClipAdapter(dl.BaseModelAdapter):
                         images, texts = batch
                         images = images.to(self.device)
                         texts = texts.to(self.device)
-                        batch_size = len(images)
+                        num_pairs = len(images)
+
+                        if num_pairs == 1:
+                            logger.warning("Must have batch size > 1. Skipping item.")
+                            continue
 
                         # forward pass for model predictions
                         logits_per_image, logits_per_text = self.model(images, texts)
 
                         # calc ground truth + loss
-                        ground_truth = torch.arange(batch_size, dtype=torch.long, device=self.device)
+                        ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
                         total_loss = (loss_img(logits_per_image, ground_truth) +
                                       loss_txt(logits_per_text, ground_truth)) / 2
                         # backprop
@@ -199,8 +204,8 @@ class ClipAdapter(dl.BaseModelAdapter):
                             tepoch.set_postfix(Training_loss=f"{total_loss.item():.4f}")
 
                         # statistics
-                        total_imgs += batch_size
-                        running_loss += (total_loss.item() * batch_size)
+                        total_imgs += num_pairs
+                        running_loss += (total_loss.item() * num_pairs)
                         epoch_loss = running_loss / total_imgs
 
                         if phase == "val":
@@ -210,9 +215,10 @@ class ClipAdapter(dl.BaseModelAdapter):
                             text_pred = torch.argmax(logits_per_text, dim=1)
                             correct_preds += (image_pred == ground_truth).sum().item()
                             correct_preds += (text_pred == ground_truth).sum().item()
-                            total_preds += 2 * batch_size
+                            total_preds += 2 * num_pairs
 
-                            accuracy = correct_preds / total_preds
+                            if total_preds > 0:
+                                accuracy = correct_preds / total_preds
                     logger.info(
                         f'Epoch {epoch}/{num_epochs} - {phase} '
                         f'Loss: {total_loss.item():.4f}, Accuracy: {accuracy:.4f}, '
@@ -228,7 +234,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                                                                            x=epoch,
                                                                            y=accuracy),
                                                      dataset_id=self.model_entity.dataset_id)
-
 
             if val_loss < best_loss:
                 not_improving_epochs = 0
