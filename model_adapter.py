@@ -69,7 +69,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         """
         model_path = os.path.join(local_path, self.weights_filename)
         torch.save({'model_state_dict': self.model.state_dict()}, model_path)
-        logger.info("Model saved to {}".format(model_path))
+        logger.info(f"Model saved to {model_path}")
 
     def prepare_item_func(self, item: dl.Item):
         if 'image/' in item.mimetype:
@@ -83,7 +83,7 @@ class ClipAdapter(dl.BaseModelAdapter):
     def embed(self, batch, **kwargs):
         embeddings = []
         with torch.no_grad():
-            for item in batch:
+            for i, item in enumerate(batch):
                 if isinstance(item, str):
                     text = item
                     tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
@@ -96,7 +96,8 @@ class ClipAdapter(dl.BaseModelAdapter):
                     embedding = features[0].cpu().detach().numpy().tolist()
                 else:
                     logger.info(
-                        f'Unsupported mimetype for CLIP: {type(item)}. Features not extracted for item ID {item.id}. Skipping.')
+                        f'Unsupported mimetype for CLIP: {type(item)}. '
+                        f'Features not extracted for item {i} in batch of {len(batch)}, skipping.')
                     embedding = list()  # TODO check that uploading an empty list doesn't create a feature
                 embeddings.append(embedding)
         return embeddings
@@ -166,22 +167,26 @@ class ClipAdapter(dl.BaseModelAdapter):
 
                 running_loss = 0.0
                 total_imgs = 0
+                correct_preds = 0
+                total_preds = 0
 
-                with tqdm(dataloaders[phase], unit='batch', desc=f"{phase} phase: ") as tepoch:
+                with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch} - {phase} phase: ") as tepoch:
                     for idx, batch in enumerate(tepoch):
                         optimizer.zero_grad()
 
                         images, texts = batch
                         images = images.to(self.device)
                         texts = texts.to(self.device)
+                        batch_size = len(images)
 
-                        # forward pass
+                        # forward pass for model predictions
                         logits_per_image, logits_per_text = self.model(images, texts)
 
-                        # calc loss + backprop
-                        ground_truth = torch.arange(len(images), dtype=torch.long, device=self.device)
-                        total_loss = (loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text,
-                                                                                          ground_truth)) / 2
+                        # calc ground truth + loss
+                        ground_truth = torch.arange(batch_size, dtype=torch.long, device=self.device)
+                        total_loss = (loss_img(logits_per_image, ground_truth) +
+                                      loss_txt(logits_per_text, ground_truth)) / 2
+                        # backprop
                         if phase == 'train':
                             total_loss.backward()
 
@@ -194,21 +199,36 @@ class ClipAdapter(dl.BaseModelAdapter):
                             tepoch.set_postfix(Training_loss=f"{total_loss.item():.4f}")
 
                         # statistics
-                        total_imgs += images.size(0)
-                        running_loss += (total_loss.item() * images.size(0))
+                        total_imgs += batch_size
+                        running_loss += (total_loss.item() * batch_size)
                         epoch_loss = running_loss / total_imgs
 
                         if phase == "val":
                             val_loss = epoch_loss
 
+                            image_pred = torch.argmax(logits_per_image, dim=1)
+                            text_pred = torch.argmax(logits_per_text, dim=1)
+                            correct_preds += (image_pred == ground_truth).sum().item()
+                            correct_preds += (text_pred == ground_truth).sum().item()
+                            total_preds += 2 * batch_size
+
+                            accuracy = correct_preds / total_preds
                     logger.info(
-                        f'Epoch {epoch}/{num_epochs} - {phase} loss: {total_loss.item():.4f}, Duration {(time.time() - tepoch_time):.2f}')
+                        f'Epoch {epoch}/{num_epochs} - {phase} '
+                        f'Loss: {total_loss.item():.4f}, Accuracy: {accuracy:.4f}, '
+                        f'Duration {(time.time() - tepoch_time):.2f}')
 
                     self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',
                                                                            legend=phase,
                                                                            x=epoch,
                                                                            y=epoch_loss),
                                                      dataset_id=self.model_entity.dataset_id)
+                    self.model_entity.metrics.create(samples=dl.PlotSample(figure='accuracy',
+                                                                           legend=phase,
+                                                                           x=epoch,
+                                                                           y=accuracy),
+                                                     dataset_id=self.model_entity.dataset_id)
+
 
             if val_loss < best_loss:
                 not_improving_epochs = 0
@@ -226,7 +246,7 @@ class ClipAdapter(dl.BaseModelAdapter):
 
     def convert_from_dtlpy(self, data_path, **kwargs):
         # Subsets validation
-        subsets = self.model_entity.metadata.get("system", dict()).get("subsets", None)
+        subsets = self.model_entity.metadata.get("system", {}).get("subsets", None)
         if 'train' not in subsets:
             raise ValueError('Could not find train set. CLIP requires train and validation set for training. '
                              'Add a train set DQL filter in the dl.Model metadata')
