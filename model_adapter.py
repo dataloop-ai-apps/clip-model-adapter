@@ -1,5 +1,3 @@
-# batch_size must larger than 1
-
 import os
 import clip
 import json
