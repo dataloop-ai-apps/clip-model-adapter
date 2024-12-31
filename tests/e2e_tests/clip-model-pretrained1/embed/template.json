@@ -45,14 +45,12 @@
     {
       "name": "model",
       "type": "Model",
-      "description": "Model used for embedding ",
-      "value": "$var(model__model)"
+      "description": "Model used for embedding"
     },
     {
       "name": "dataset",
       "type": "Dataset",
-      "description": "Dataset source for embedding",
-      "value": "$var(dataset__dataset)"
+      "description": "Dataset source for embedding"
     }
   ],
   "description": "",
