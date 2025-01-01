@@ -36,12 +36,26 @@ class ImageTextDataset(Dataset):
         return image, title
 
 
+class ClipClassifier(nn.Module):
+    def __init__(self, model, num_classes):
+        super(ClipClassifier, self).__init__()
+        self.model = model
+        self.linear = nn.Linear(self.model.visual.output_dim, num_classes)
+
+    def forward(self, image):
+        image_features = self.clip_model.encode_image(image).float()
+        return self.linear(image_features)
+
+
 class ClipAdapter(dl.BaseModelAdapter):
     """
     Model Adapter for CLIP text and image embedding model from OpenAI
     """
 
     def load(self, local_path, **kwargs):
+        if self.model_entity.labels is None:
+            raise ValueError("Model entity must have labels in order to classify.")
+
         self.arch_name = self.configuration.get("model_name", "ViT-B/32")
         self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -50,12 +64,14 @@ class ClipAdapter(dl.BaseModelAdapter):
         model_filepath = os.path.join(local_path, self.weights_filename) if Path(
             self.weights_filename).stem not in clip.available_models() \
             else self.weights_filename
-        self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False)
+        clip_model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False)
         if os.path.isfile(model_filepath) is True:  # and self.model.status != 'pre-trained':
             checkpoint = torch.load(model_filepath, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
         else:
             logger.info("No previously saved model found, loading from default pre-trained weights.")
+        # self.classifier = nn.Linear(self.model.visual.output_dim, len(self.model_entity.labels))
+        self.model = ClipClassifier(model=clip_model, num_classes=(self.model_entity.labels))
         self.model.eval()
         logger.info(f"Loaded model CLIP {self.arch_name} successfully")
 
@@ -72,31 +88,26 @@ class ClipAdapter(dl.BaseModelAdapter):
     def prepare_item_func(self, item: dl.Item):
         if 'image/' in item.mimetype:
             item_object = item.download(save_locally=False, to_array=True)
-        elif 'text/' in item.mimetype:
-            item_object = item.download(save_locally=False).read().decode()
+        # elif 'text/' in item.mimetype:
+        #     item_object = item.download(save_locally=False).read().decode()
         else:
-            raise TypeError(f"Unsupported mimetype for CLIP: {item.mimetype} for item {item.id}")
+            raise TypeError(f"Unsupported mimetype for CLIP classifier: {item.mimetype} for item {item.id}")
         return item_object
 
     def embed(self, batch, **kwargs):
         embeddings = []
         with torch.no_grad():
             for i, item in enumerate(batch):
-                if isinstance(item, str):
-                    text = item
-                    tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
-                    features = self.model.encode_text(tokens)
-                    embedding = features[0].cpu().detach().numpy().tolist()
-                elif isinstance(item, np.ndarray):
+                if isinstance(item, np.ndarray):
                     item_img = Image.fromarray(item)
                     image = self.preprocess(item_img).unsqueeze(0).to(self.device)
                     features = self.model.encode_image(image)
                     embedding = features[0].cpu().detach().numpy().tolist()
-                else:
-                    logger.info(
-                        f'Unsupported mimetype for CLIP: {type(item)}. '
-                        f'Features not extracted for item {i} in batch of {len(batch)}, skipping.')
-                    embedding = list()  # TODO check that uploading an empty list doesn't create a feature
+                else: # if isinstance(item, str):
+                    text = item
+                    tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
+                    features = self.model.encode_text(tokens)
+                    embedding = features[0].cpu().detach().numpy().tolist()
                 embeddings.append(embedding)
         return embeddings
 
@@ -110,7 +121,6 @@ class ClipAdapter(dl.BaseModelAdapter):
         betas = self.configuration.get('betas', (0.9, 0.98))
         episilon = self.configuration.get('episilon', 1e-6)
         weight_decay = self.configuration.get('weight_decay', 0.2)
-        on_epoch_end_callback = kwargs.get('on_epoch_end_callback')
 
         # early stopping params
         best_loss = np.inf
@@ -143,8 +153,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         if self.device == "cpu":
             self.model.float()
 
-        loss_img = nn.CrossEntropyLoss()
-        loss_txt = nn.CrossEntropyLoss()
+        loss_fxn = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(self.model.parameters(),
                                      lr=learning_rate,
                                      betas=betas,
@@ -168,7 +177,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                 correct_preds = 0
                 total_preds = 0
                 accuracy = 0
-                val_loss = float()
 
                 with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch} - {phase} phase: ") as tepoch:
                     for idx, batch in enumerate(tepoch):
@@ -184,15 +192,15 @@ class ClipAdapter(dl.BaseModelAdapter):
                             continue
 
                         # forward pass for model predictions
-                        logits_per_image, logits_per_text = self.model(images, texts)
+                        logits = self.model(images, num_pairs)
 
                         # calc ground truth + loss
-                        ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
-                        total_loss = (loss_img(logits_per_image, ground_truth) +
-                                      loss_txt(logits_per_text, ground_truth)) / 2
+                        ground_truth = torch.arange(num_pairs, device=self.device)
+                        loss = loss_fxn(logits, texts)
+                        loss.backward()
+
                         # backprop
                         if phase == 'train':
-                            total_loss.backward()
 
                             if self.device == "cpu":
                                 optimizer.step()
@@ -200,27 +208,26 @@ class ClipAdapter(dl.BaseModelAdapter):
                                 ClipAdapter._convert_models_to_fp32(self.model)
                                 optimizer.step()
                                 clip.model.convert_weights(self.model)
-                            tepoch.set_postfix(Training_loss=f"{total_loss.item():.4f}")
+                            tepoch.set_postfix(Training_loss=f"{loss.item():.4f}")
 
                         # statistics
                         total_imgs += num_pairs
-                        running_loss += (total_loss.item() * num_pairs)
+                        running_loss += (loss.item() * num_pairs)
                         epoch_loss = running_loss / total_imgs
 
                         if phase == "val":
                             val_loss = epoch_loss
 
-                            # image_pred = torch.argmax(logits_per_image, dim=1)
-                            # text_pred = torch.argmax(logits_per_text, dim=1)
-                            # correct_preds += (image_pred == ground_truth).sum().item()
-                            # correct_preds += (text_pred == ground_truth).sum().item()
-                            # total_preds += 2 * num_pairs
-                            #
-                            # if total_preds > 0:
-                            #     accuracy = correct_preds / total_preds
+                            image_pred = torch.argmax(logits, dim=1)
+                            correct_preds += (image_pred == ground_truth).sum().item()
+                            correct_preds += (text_pred == ground_truth).sum().item()
+                            total_preds += 2 * num_pairs
+
+                            if total_preds > 0:
+                                accuracy = correct_preds / total_preds
                     logger.info(
                         f'Epoch {epoch}/{num_epochs} - {phase} '
-                        f'Loss: {total_loss.item():.4f},' # Accuracy: {accuracy:.4f}, '
+                        f'Loss: {total_loss.item():.4f}, Accuracy: {accuracy:.4f}, '
                         f'Duration {(time.time() - tepoch_time):.2f}')
 
                     self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',
@@ -228,11 +235,11 @@ class ClipAdapter(dl.BaseModelAdapter):
                                                                            x=epoch,
                                                                            y=epoch_loss),
                                                      dataset_id=self.model_entity.dataset_id)
-                    # self.model_entity.metrics.create(samples=dl.PlotSample(figure='accuracy',
-                    #                                                        legend=phase,
-                    #                                                        x=epoch,
-                    #                                                        y=accuracy),
-                    #                                  dataset_id=self.model_entity.dataset_id)
+                    self.model_entity.metrics.create(samples=dl.PlotSample(figure='accuracy',
+                                                                           legend=phase,
+                                                                           x=epoch,
+                                                                           y=accuracy),
+                                                     dataset_id=self.model_entity.dataset_id)
 
             if val_loss < best_loss:
                 not_improving_epochs = 0
