@@ -5,7 +5,7 @@ dpks:
 
 # ordered list of datasets to create from local assets or to get from installed apps
 datasets:
-    - name: clip_embed_dataset
+    - name: clip_embed_dataset1
       type: local
 
 # ordered list of models to get from apps
@@ -19,7 +19,7 @@ variables:
     - name: dataset
       resource_type: datasets
       resource_value:
-          resource_name: clip_embed_dataset
+          resource_name: clip_embed_dataset1
     - name: model
       resource_type: models
       resource_value:
