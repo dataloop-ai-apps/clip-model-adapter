@@ -220,14 +220,13 @@ class ClipAdapter(dl.BaseModelAdapter):
 
                             image_pred = torch.argmax(logits, dim=1)
                             correct_preds += (image_pred == ground_truth).sum().item()
-                            correct_preds += (text_pred == ground_truth).sum().item()
                             total_preds += 2 * num_pairs
 
                             if total_preds > 0:
                                 accuracy = correct_preds / total_preds
                     logger.info(
                         f'Epoch {epoch}/{num_epochs} - {phase} '
-                        f'Loss: {total_loss.item():.4f}, Accuracy: {accuracy:.4f}, '
+                        f'Loss: {loss.item():.4f}, Accuracy: {accuracy:.4f}, '
                         f'Duration {(time.time() - tepoch_time):.2f}')
 
                     self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',

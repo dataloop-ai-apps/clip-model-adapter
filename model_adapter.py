@@ -210,14 +210,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                         if phase == "val":
                             val_loss = epoch_loss
 
-                            # image_pred = torch.argmax(logits_per_image, dim=1)
-                            # text_pred = torch.argmax(logits_per_text, dim=1)
-                            # correct_preds += (image_pred == ground_truth).sum().item()
-                            # correct_preds += (text_pred == ground_truth).sum().item()
-                            # total_preds += 2 * num_pairs
-                            #
-                            # if total_preds > 0:
-                            #     accuracy = correct_preds / total_preds
                     logger.info(
                         f'Epoch {epoch}/{num_epochs} - {phase} '
                         f'Loss: {total_loss.item():.4f},' # Accuracy: {accuracy:.4f}, '
@@ -228,11 +220,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                                                                            x=epoch,
                                                                            y=epoch_loss),
                                                      dataset_id=self.model_entity.dataset_id)
-                    # self.model_entity.metrics.create(samples=dl.PlotSample(figure='accuracy',
-                    #                                                        legend=phase,
-                    #                                                        x=epoch,
-                    #                                                        y=accuracy),
-                    #                                  dataset_id=self.model_entity.dataset_id)
 
             if val_loss < best_loss:
                 not_improving_epochs = 0
