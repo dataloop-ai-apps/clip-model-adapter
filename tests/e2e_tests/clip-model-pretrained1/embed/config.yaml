@@ -1,6 +1,6 @@
 # ordered list of dpks to publish and install
 dpks:
-    - name: clip-model-pretrained1
+    - name: clip-model-pretrained2
       install_app: True
 
 # ordered list of datasets to create from local assets or to get from installed apps
@@ -12,7 +12,7 @@ datasets:
 models:
     - name: openai-clip
       deploy_model: False
-      source_app: clip-model-pretrained1
+      source_app: clip-model-pretrained2
 
 # list of pipeline variables to update with reference
 variables:
