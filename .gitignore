@@ -160,3 +160,4 @@ Thumbs.db
 *.pt
 tmp/
 .dataloop/
+.env
