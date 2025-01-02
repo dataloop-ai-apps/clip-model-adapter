@@ -165,12 +165,8 @@ class ClipAdapter(dl.BaseModelAdapter):
 
                 running_loss = 0.0
                 total_imgs = 0
-                correct_preds = 0
-                total_preds = 0
-                accuracy = 0
-                val_loss = float()
 
-                with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch} - {phase} phase: ") as tepoch:
+                with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch}/{num_epochs} - {phase} phase: ") as tepoch:
                     for idx, batch in enumerate(tepoch):
                         optimizer.zero_grad()
 
@@ -178,7 +174,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                         images = images.to(self.device)
                         texts = texts.to(self.device)
                         num_pairs = len(images)
-
                         if num_pairs == 1:
                             logger.warning("Must have batch size > 1. Skipping item.")
                             continue
@@ -212,7 +207,7 @@ class ClipAdapter(dl.BaseModelAdapter):
 
                     logger.info(
                         f'Epoch {epoch}/{num_epochs} - {phase} '
-                        f'Loss: {total_loss.item():.4f},' # Accuracy: {accuracy:.4f}, '
+                        f'Loss: {total_loss.item():.4f},'
                         f'Duration {(time.time() - tepoch_time):.2f}')
 
                     self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',
