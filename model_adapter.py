@@ -75,7 +75,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         elif 'text/' in item.mimetype:
             item_object = item.download(save_locally=False).read().decode()
         else:
-            raise TypeError(f"Unsupported mimetype for CLIP: {item.mimetype} for item {item.id}")
+            item_object = item # for prompt items in training
         return item_object
 
     def embed(self, batch, **kwargs):
@@ -110,7 +110,6 @@ class ClipAdapter(dl.BaseModelAdapter):
         betas = self.configuration.get('betas', (0.9, 0.98))
         episilon = self.configuration.get('episilon', 1e-6)
         weight_decay = self.configuration.get('weight_decay', 0.2)
-        on_epoch_end_callback = kwargs.get('on_epoch_end_callback')
 
         # early stopping params
         best_loss = np.inf
