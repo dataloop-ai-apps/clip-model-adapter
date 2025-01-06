@@ -70,34 +70,27 @@ class ClipAdapter(dl.BaseModelAdapter):
         logger.info(f"Model saved to {model_path}")
 
     def prepare_item_func(self, item: dl.Item):
-        if 'image/' in item.mimetype:
-            item_object = item.download(save_locally=False, to_array=True)
-        elif 'text/' in item.mimetype:
-            item_object = item.download(save_locally=False).read().decode()
-        else:
-            item_object = item # for prompt items in training
-        return item_object
+        return item
 
     def embed(self, batch, **kwargs):
         embeddings = []
-        with torch.no_grad():
-            for i, item in enumerate(batch):
-                if isinstance(item, str):
-                    text = item
-                    tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
-                    features = self.model.encode_text(tokens)
-                    embedding = features[0].cpu().detach().numpy().tolist()
-                elif isinstance(item, np.ndarray):
-                    item_img = Image.fromarray(item)
-                    image = self.preprocess(item_img).unsqueeze(0).to(self.device)
-                    features = self.model.encode_image(image)
-                    embedding = features[0].cpu().detach().numpy().tolist()
-                else:
-                    logger.info(
-                        f'Unsupported mimetype for CLIP: {type(item)}. '
-                        f'Features not extracted for item {i} in batch of {len(batch)}, skipping.')
-                    embedding = list()  # TODO check that uploading an empty list doesn't create a feature
-                embeddings.append(embedding)
+        for i, item in enumerate(batch):
+            if 'image/' in item.mimetype:
+                item_img = Image.fromarray(item.download(save_locally=False, to_array=True))
+                image = self.preprocess(item_img).unsqueeze(0).to(self.device)
+                features = self.model.encode_image(image)
+                embedding = features[0].cpu().detach().numpy().tolist()
+            elif 'text/' in item.mimetype:
+                text = item.download(save_locally=False).read().decode()
+                tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
+                features = self.model.encode_text(tokens)
+                embedding = features[0].cpu().detach().numpy().tolist()
+            else:
+                logger.info(
+                    f'Unsupported mimetype for CLIP: {type(item)}. '
+                    f'Features not extracted for item {item.name} ID {item.id}, skipping.')
+                embedding = None
+            embeddings.append(embedding)
         return embeddings
 
     def train(self, data_path, output_path, **kwargs):
@@ -227,6 +220,7 @@ class ClipAdapter(dl.BaseModelAdapter):
             if not_improving_epochs > early_stopping_epochs and early_stop is True:
                 logger.info("Early stop achieved at epoch ", epoch + 1)
                 end_training = True
+            self.model.eval()
         return
 
     def convert_from_dtlpy(self, data_path, **kwargs):
