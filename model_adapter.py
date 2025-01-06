@@ -116,7 +116,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         ################
         # prepare data #
         ################
-        # data should be prompt items of the image and one annotation of free-text
+        # use downloaded prompt items to get image and text pairs
         train_items, train_captions = self.get_img_txt_pairs(os.path.join(data_path, 'train'))
         val_items, val_captions = self.get_img_txt_pairs(os.path.join(data_path, 'validation'))
         train_dataset = ImageTextDataset(train_items, train_captions, self.preprocess)
@@ -220,7 +220,6 @@ class ClipAdapter(dl.BaseModelAdapter):
             if not_improving_epochs > early_stopping_epochs and early_stop is True:
                 logger.info("Early stop achieved at epoch ", epoch + 1)
                 end_training = True
-            self.model.eval()
         return
 
     def convert_from_dtlpy(self, data_path, **kwargs):
