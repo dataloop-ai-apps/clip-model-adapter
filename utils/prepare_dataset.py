@@ -74,39 +74,11 @@ class ClipPrepare:
             new_item.update()
         return new_item
 
-    @staticmethod
-    def create_new_dataset(dataset_name, pairs_csv, img_path_col='filepath', img_desc_col='img_description'):
-        try:
-            dataset = project.datasets.get(dataset_name=dataset_name)
-        except dl.exceptions.NotFound:
-            dataset = project.datasets.create(dataset_name=dataset_name)
 
-        for index, row in pairs_csv.iterrows():
-            file_path = row[img_path_col]
-            annots_path = file_path.replace('items', 'json')
-            file_name = Path(file_path).name
-            item = dataset.items.upload(local_path=file_path,
-                                        local_annotations_path=annots_path,
-                                        item_metadata=dl.ExportMetadata.FROM_JSON,
-                                        overwrite=True)
-
-            item.set_description(text=row[img_desc_col])
-            item.update()
-            print(f"Uploaded {file_name} with description: '{row[img_desc_col]}'")
-
-        return dataset
-
-
-if __name__ == '__main__':
-    ENV = 'rc'
-    # PROJECT_NAME = 'test yaya'
-    # DATASET_NAME = 'Data Management Demo Dataset'
-    # CSV_PATH = r"C:\Users\Yaya Tang\Documents\DATASETS\TACO 100\taco_100_INPUTS.csv"
-    PROJECT_NAME = "Model mgmt demo"
-    DATASET_NAME = "ceyda_fashion"
-
-    dl.setenv(ENV)
-    project = dl.projects.get(project_name=PROJECT_NAME)
-    dataset = project.datasets.get(dataset_name=DATASET_NAME)
-    prepared_dataset = ClipPrepare.convert_dataset(project=project, dataset=dataset)
-    print(f"Prepared dataset: {prepared_dataset.name}")
+if __name__ == "__main__":
+    dl.login()
+    PROJECT_NAME = "<your project name>"
+    DATASET_NAME = "<your dataset name>"
+    project = dl.projects.get(PROJECT_NAME)
+    dataset = project.datasets.get(DATASET_NAME)
+    prompt_dataset = ClipPrepare.convert_dataset(dataset)

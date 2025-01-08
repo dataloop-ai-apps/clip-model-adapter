@@ -44,7 +44,14 @@ Dataloop platform.
 ### Model Fine-tuning
 
 For training, **items must be converted into prompt item objects**, with the image as the prompt
-and the corresponding caption as the response (i.e. a text annotation).
+and the corresponding caption as the response (i.e. a text annotation). 
+
+First, upload all images into a dataset in the Dataloop platform. This will also serve as the dataset to be searched 
+after CLIP training is complete. 
+
+Then, create a prompt items dataset with the images 
+captions that points to the images in the first dataset. You can find some example code and functions in the utils script 
+[here](./utils/prepare_dataset.py).
 
 Make sure the dataset has training and validation subsets are defined in the prompt items dataset (see docs
 [here](https://developers.dataloop.ai/tutorials/model_management/marketplace/chapter/#define-dataset-subsets) for
