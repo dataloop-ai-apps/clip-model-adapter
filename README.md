@@ -74,10 +74,13 @@ The basic configurations included are:
   a GPU)
 * ```early_stop```: boolean for early stopping (default: ```True```)
 * ```early_stopping_epochs```: number of epochs to wait before stopping training if no improvement (default: 5)
-* ```learning_rate```: learning rate for the optimizer (default: 1e-4)
+* ```learning_rate```: learning rate for the optimizer (default: 5e-5)
 * ```betas```: betas for the optimizer (default: (0.9, 0.98))
 * ```epsilon```: epsilon for the optimizer (default: 1e-6)
 * ```weight_decay```: weight decay for the optimizer (default: 0.2)
+
+Note: CLIP finetuning is very sensitive to hyperparameter values. It is recommended to use as large a batch size as 
+possible, and to use smaller learning rates if the model is not converging.
 
 ## Deployment
 
