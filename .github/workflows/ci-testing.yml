@@ -37,5 +37,5 @@ jobs:
       - name: Test with pytest
         run: |
           dlp api setenv --env rc
-          dlp login-m2m --email ${{ vars.TEST_BOT_EMAIL_RC }} --password ${{ secrets.TEST_BOT_PASSWORD_RC }}
+          dlp login-m2m --email "${{ vars.BOT_EMAIL_RC }}" --password "${{ secrets.BOT_PASSWORD_RC }}"
           pytest
