@@ -38,4 +38,4 @@ jobs:
         run: |
           dlp api setenv --env rc
           dlp login-m2m --email "${{ vars.BOT_EMAIL_RC }}" --password "${{ secrets.BOT_PASSWORD_RC }}"
-          pytest
+          python -m unittest
