@@ -2,7 +2,7 @@
   "name": "clip-model-pretrained",
   "displayName": "OpenAI CLIP",
   "description": "CLIP (Contrastive Language-Image Pretraining) model for retrieving the most relevant images given a text snippet. Copyright (c) 2021 OpenAI",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scope": "public",
   "attributes": {
     "Category": "Model",
@@ -20,7 +20,7 @@
   "codebase": {
     "type": "git",
     "gitUrl": "https://github.com/dataloop-ai-apps/clip-model-adapter",
-    "gitTag": "0.1.0"
+    "gitTag": "0.1.1"
   },
   "components": {
     "modules": [
