@@ -1,0 +1,234 @@
+{
+  "connections": [
+    {
+      "src": {
+        "nodeId": "345f64f5-8582-4800-8da4-da1d9b965a33",
+        "portId": "216c2d7e-434d-4779-ab51-ac62d9d4a9da"
+      },
+      "tgt": {
+        "nodeId": "f8765073-9c14-4c9b-bc99-c70ee8a10f8d",
+        "portId": "a4f070ac-b797-4baa-aabd-0ba2c157f8fd"
+      },
+      "condition": "{}"
+    },
+    {
+      "src": {
+        "nodeId": "b76096d9-3b91-44e3-99e9-3504c49c560a",
+        "portId": "a7c6ba77-6bc0-47a2-a33a-9bafc823d68f"
+      },
+      "tgt": {
+        "nodeId": "345f64f5-8582-4800-8da4-da1d9b965a33",
+        "portId": "fb16db6b-8b50-487a-99df-fa582ce14661"
+      },
+      "condition": "{}"
+    }
+  ],
+  "startNodes": [
+    {
+      "nodeId": "b76096d9-3b91-44e3-99e9-3504c49c560a",
+      "type": "root",
+      "id": "a6fb66d0-5101-4be1-89da-2e866a51da1a"
+    }
+  ],
+  "variables": [
+    {
+      "name": "model",
+      "type": "Model",
+      "description": "Model used for embedding"
+    },
+    {
+      "name": "dataset",
+      "type": "Dataset",
+      "description": "Dataset source for embedding"
+    }
+  ],
+  "description": "",
+  "name": "e2e testing clip embed",
+  "templateKind": "org",
+  "nodes": [
+    {
+      "id": "b76096d9-3b91-44e3-99e9-3504c49c560a",
+      "inputs": [
+        {
+          "portId": "f20c5d32-8841-40d4-99fe-40aa2abaa44f",
+          "nodeId": "6ac98b21-6fa9-430a-8ac0-043b189178f5",
+          "type": "Dataset",
+          "name": "dataset",
+          "displayName": "dataset",
+          "variableName": "dataset",
+          "io": "input"
+        },
+        {
+          "portId": "50e381c4-526b-4ec9-b228-ce06cd5fbd9b",
+          "nodeId": "8c6972b0-1f82-4fea-8c47-bfd3e3777d89",
+          "type": "Model",
+          "name": "model",
+          "displayName": "model",
+          "variableName": "model",
+          "io": "input"
+        }
+      ],
+      "outputs": [
+        {
+          "portId": "a7c6ba77-6bc0-47a2-a33a-9bafc823d68f",
+          "nodeId": "c0dc520e-e5c8-491c-b414-9c6ba79af601",
+          "type": "Item[]",
+          "name": "items",
+          "displayName": "items",
+          "variableName": null,
+          "io": "output"
+        }
+      ],
+      "name": "code",
+      "type": "code",
+      "namespace": {
+        "functionName": "run",
+        "packageName": "",
+        "serviceName": ""
+      },
+      "appName": null,
+      "dpkName": null,
+      "config": {
+        "package": {
+          "code": "import dtlpy as dl\n\n\nclass ServiceRunner:\n\n    def run(self, dataset, model):\n        items = list(dataset.items.list().all())\n        return items",
+          "name": "run",
+          "type": "code",
+          "codebase": {
+            "type": "item"
+          }
+        }
+      },
+      "metadata": {
+        "position": {
+          "x": 10209.000015258789,
+          "y": 10135.000003814697,
+          "z": 0
+        },
+        "componentGroupName": "automation",
+        "codeApplicationName": "e2e-test-clip-embed-pre",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "f8765073-9c14-4c9b-bc99-c70ee8a10f8d",
+      "inputs": [
+        {
+          "portId": "a4f070ac-b797-4baa-aabd-0ba2c157f8fd",
+          "nodeId": "86791b5f-2712-4de8-bc6e-77c25d2d05c2",
+          "type": "Item",
+          "name": "item",
+          "displayName": "item",
+          "variableName": null,
+          "io": "input"
+        },
+        {
+          "portId": "b4b7404d-700f-41ff-8668-1cbdd5ca720c",
+          "nodeId": "b4b7404d-700f-41ff-8668-1cbdd5ca720c",
+          "type": "Model",
+          "name": "model",
+          "displayName": "model",
+          "variableName": "model",
+          "io": "input"
+        }
+      ],
+      "outputs": [
+        {
+          "portId": "57ea45e2-f063-417d-beb2-522c1a43ead6",
+          "nodeId": "1eac0334-dd1c-4591-8b0e-f864095076df",
+          "type": "Item",
+          "name": "item",
+          "displayName": "item",
+          "variableName": null,
+          "io": "output"
+        }
+      ],
+      "name": "code",
+      "type": "code",
+      "namespace": {
+        "functionName": "run",
+        "packageName": "",
+        "serviceName": ""
+      },
+      "appName": null,
+      "dpkName": null,
+      "config": {
+        "package": {
+          "code": "import os\nimport logging\nimport dtlpy as dl\n\nlogger = logging.getLogger(\"e2e embed testing\")\n\nclass ServiceRunner:\n    @staticmethod\n    def run(item: dl.Item, model: dl.Model):\n        project = item.project\n        feature_set = project.feature_sets.get(feature_set_name=model.name)\n        filters = dl.Filters(resource=dl.FiltersResource.FEATURE)\n        filters.add(field=\"featureSetId\", values=feature_set.id)\n\n        features = list(item.features.list(filters=filters).all())\n\n        if \"img_pass\" in item.name and len(features) == 1:\n            tests_passed = True\n        elif \"text_pass\" in item.name and len(features) == 1:\n            tests_passed = True\n        elif \"pdf_fail\" in item.name and len(features) == 0:\n            tests_passed = True\n        else:\n            raise ValueError(f\"incorrect features for item {item.id}. tests failed\")\n        return tests_passed",
+          "name": "run",
+          "type": "code",
+          "codebase": {
+            "type": "item"
+          }
+        }
+      },
+      "metadata": {
+        "position": {
+          "x": 10859.136734008789,
+          "y": 10133.241214752195,
+          "z": 0
+        },
+        "componentGroupName": "automation",
+        "codeApplicationName": "e2e-test-clip-embed-post",
+        "repeatable": true
+      }
+    },
+    {
+      "id": "345f64f5-8582-4800-8da4-da1d9b965a33",
+      "inputs": [
+        {
+          "portId": "fb16db6b-8b50-487a-99df-fa582ce14661",
+          "nodeId": "76aba473-4e6a-4b15-93c6-5ba843578fe0",
+          "type": "Item",
+          "name": "item",
+          "displayName": "item",
+          "variableName": null,
+          "io": "input"
+        }
+      ],
+      "outputs": [
+        {
+          "portId": "216c2d7e-434d-4779-ab51-ac62d9d4a9da",
+          "nodeId": "1ea08643-5672-432b-b8f1-c6d55f170585",
+          "type": "Item",
+          "name": "item",
+          "displayName": "item",
+          "variableName": null,
+          "io": "output"
+        },
+        {
+          "portId": "117c87fd-5b14-4051-8cc4-470a656e47f5",
+          "nodeId": "977ad293-4fe7-438a-8222-3d98b15d93d4",
+          "type": "Json",
+          "name": "json",
+          "displayName": "json",
+          "variableName": null,
+          "io": "output"
+        }
+      ],
+      "name": "Embeddings",
+      "type": "ml",
+      "namespace": {
+        "functionName": "embed",
+        "projectName": "Model mgmt demo",
+        "serviceName": "embed-677d03501924b41132de32e9-log3",
+        "moduleName": null,
+        "packageName": "model-mgmt-app"
+      },
+      "appName": null,
+      "dpkName": null,
+      "metadata": {
+        "position": {
+          "x": 10522.000015258789,
+          "y": 10134.000003814697,
+          "z": 0
+        },
+        "componentGroupName": "models",
+        "repeatable": true,
+        "variableModel": "model",
+        "mlType": "embeddings"
+      }
+    }
+  ],
+  "preview": null,
+  "_id": null
+}

@@ -1,0 +1,163 @@
+{
+  "name": "clip-model-pretrained",
+  "displayName": "OpenAI CLIP",
+  "description": "CLIP (Contrastive Language-Image Pretraining) model for retrieving the most relevant images given a text snippet. Copyright (c) 2021 OpenAI",
+  "version": "0.1.0",
+  "scope": "public",
+  "attributes": {
+    "Category": "Model",
+    "Hub": "Dataloop",
+    "Deployed By": "Dataloop",
+    "Provider": "Open AI",
+    "License": "MIT",
+    "NLP": "Embeddings",
+    "Media Type": [
+      "Image",
+      "Text",
+      "Multi Modal"
+    ]
+  },
+  "codebase": {
+    "type": "git",
+    "gitUrl": "https://github.com/dataloop-ai-apps/clip-model-adapter",
+    "gitTag": "0.1.0"
+  },
+  "components": {
+    "modules": [
+      {
+        "name": "clip-module",
+        "entryPoint": "model_adapter.py",
+        "className": "ClipAdapter",
+        "computeConfig": "clip-cpu",
+        "description": "CLIP model adapter for search with NLP",
+        "initInputs": [
+          {
+            "type": "Model",
+            "name": "model_entity"
+          }
+        ],
+        "functions": [
+          {
+            "name": "train_model",
+            "computeConfig": "clip-train",
+            "input": [
+              {
+                "type": "Model",
+                "name": "model",
+                "description": "Dataloop Model Entity"
+              }
+            ],
+            "output": [
+              {
+                "type": "Model",
+                "name": "model",
+                "description": "Dataloop Model Entity"
+              }
+            ],
+            "displayName": "Train A Model",
+            "displayIcon": "icon-dl-models-management",
+            "description": "Fine-tune CLIP model on a custom dataset for improved search. "
+          },
+          {
+            "name": "embed_items",
+            "input": [
+              {
+                "type": "Item[]",
+                "name": "items",
+                "description": "The input items for embeddings."
+              }
+            ],
+            "output": [
+              {
+                "type": "Item[]",
+                "name": "items",
+                "description": "The same input items for embeddings."
+              },
+              {
+                "type": "Json",
+                "name": "json",
+                "description": "Embeddings of items."
+              }
+            ],
+            "displayName": "Embed Items",
+            "displayIcon": "icon-dl-embeddings",
+            "description": "Extract features function of the model for a list of items."
+          },
+          {
+            "name": "embed_dataset",
+            "input": [
+              {
+                "type": "Dataset",
+                "name": "dataset",
+                "description": "The input dataset of the items required for prediction."
+              },
+              {
+                "type": "Json",
+                "name": "filters",
+                "description": "The DQL in json format to get all the items required for prediction."
+              }
+            ],
+            "output": [],
+            "displayName": "Embed Dataset",
+            "displayIcon": "icon-dl-embeddings",
+            "description": "Extract features function of the model for a dataset."
+          }
+        ]
+      }
+    ],
+    "models": [
+      {
+        "name": "openai-clip",
+        "moduleName": "clip-module",
+        "scope": "project",
+        "status": "pre-trained",
+        "outputType": "text",
+        "configuration": {
+          "model_name": "ViT-B/32",
+          "embeddings_size": 512,
+          "batch_size": 128,
+          "num_epochs": 20,
+          "early_stopping": true,
+          "early_stopping_epochs": 5,
+          "learning_rate": 5e-5,
+          "betas": [0.9,0.98],
+          "weight_decay": 0.2
+        },
+        "description": "OpenAI CLIP model for search with NLP"
+      }
+    ],
+    "computeConfigs": [
+      {
+        "name": "clip-train",
+        "runtime": {
+          "podType": "gpu-t4",
+          "concurrency": 1,
+          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.0",
+          "autoscaler": {
+            "type": "rabbitmq",
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "queueLength": 100
+          },
+          "preemptible": false
+        },
+        "executionTimeout": 36000000
+      },
+      {
+        "name": "clip-cpu",
+        "runtime": {
+          "podType": "regular-s",
+          "concurrency": 1,
+          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.0",
+          "autoscaler": {
+            "type": "rabbitmq",
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "queueLength": 100
+          }
+        },
+        "executionTimeout": 3600
+      }
+    ]
+  }
+}
