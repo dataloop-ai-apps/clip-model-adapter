@@ -144,7 +144,7 @@
           },
           "preemptible": false
         },
-        "executionTimeout": 36000000
+        "executionTimeout": 432000
       },
       {
         "name": "clip-cpu",
