@@ -24,7 +24,7 @@ class ImageTextDataset(Dataset):
     def __init__(self, list_image_path, list_txt, preprocess):
         self.image_path = list_image_path
         # you can tokenize everything at once in here(slow at the beginning), or tokenize it in the training loop.
-        self.title = clip.tokenize(list_txt)
+        self.title = clip.tokenize(list_txt, truncate=True)
         self.preprocess = preprocess
 
     def __len__(self):
