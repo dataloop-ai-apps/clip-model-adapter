@@ -18,7 +18,7 @@ class MockItem:
             if to_array is True:
                 item_obj = np.array(item_obj)
         elif self.mimetype == 'text/plain':
-            item_obj = BytesIO(b"s3://ssml-prd-ext-staging/imerit/images/pcs/1565618/44479741640/frames/frame_000056.jpgs3://ssml-prd-ext-staging/imerit/images/pcs/1565618/44479741640/frames/frame_000254.jpg")
+            item_obj = BytesIO(b"Hello, world!")
         else:
             item_obj = float()
         return item_obj
