@@ -56,22 +56,24 @@ class ClipPrepare:
         prompt_item = dl.PromptItem(name=new_name)
         prompt_item.add(message={"content": [{"mimetype": dl.PromptType.IMAGE,  # role default is user
                                               "value": item.stream}]})
-        new_item = dataset.items.upload(prompt_item,
-                                        remote_name=new_name,
-                                        remote_path=item.dir,
-                                        overwrite=True)
+        new_metadata = item.metadata
+        if existing_subsets is True:
+            new_metadata["system"] = new_metadata.get("system", {})
+            new_metadata["system"]["subsets"] = item.metadata.get("system", {}).get(
+                "subsets", {}
+            )
+        new_item = dataset.items.upload(
+            prompt_item,
+            remote_name=new_name,
+            remote_path=item.dir,
+            overwrite=True,
+            item_metadata=new_metadata,
+        )
         prompt_item._item = new_item
         prompt_item.add(message={"role": "assistant",
                                  "content": [{"mimetype": dl.PromptType.TEXT,
                                               "value": caption}]})
 
-        if existing_subsets is True:
-            try:
-                new_item.metadata['system']['subsets'] = item.metadata['system']['subsets']
-            except KeyError:
-                new_item.metadata['system'] = {}
-                new_item.metadata['system']['subsets'] = item.metadata['system']['subsets']
-            new_item.update()
         return new_item
 
 

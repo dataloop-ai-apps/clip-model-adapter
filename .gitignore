@@ -161,3 +161,4 @@ Thumbs.db
 tmp/
 .dataloop/
 .env
+.vscode/
