@@ -127,8 +127,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                        'val': DataLoader(val_dataset,
                                          batch_size=batch_size)}
         logger.info(
-            f"Dataloaders created. Train dataset: {len(train_dataset)} items, validation dataset: "
-            f"{len(val_dataset)} items.")
+            f"Dataloaders created. Train dataset: {len(train_dataset)} items, validation dataset: {len(val_dataset)} items.")
 
         #################
         # prepare model #
