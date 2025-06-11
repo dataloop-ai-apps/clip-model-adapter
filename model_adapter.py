@@ -111,6 +111,9 @@ class ClipAdapter(dl.BaseModelAdapter):
         early_stopping_epochs = self.configuration.get('early_stopping_epochs', 5)
         end_training = False
 
+        # Callback for updating progress bar
+        faas_callback = kwargs.get('on_epoch_end_callback') 
+
         logger.info("Model set to train mode.")
 
         ################
@@ -147,7 +150,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         for epoch in range(num_epochs):
             if end_training:
                 break
-            logger.info('Epoch {}/{} Start...'.format(epoch, num_epochs))
+            logger.info(f"Epoch {epoch+1}/{num_epochs} Start...")
             tepoch_time = time.time()
             # Each epoch has a training and validation phase
             for phase in ['train', 'val']:
@@ -159,7 +162,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                 running_loss = 0.0
                 total_imgs = 0
 
-                with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch}/{num_epochs} - {phase} phase: ") as tepoch:
+                with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch+1}/{num_epochs} - {phase} phase: ") as tepoch:
                     for idx, batch in enumerate(tepoch):
                         optimizer.zero_grad()
 
@@ -199,13 +202,13 @@ class ClipAdapter(dl.BaseModelAdapter):
                             val_loss = epoch_loss
 
                     logger.info(
-                        f'Epoch {epoch}/{num_epochs} - {phase} '
+                        f'Epoch {epoch+1}/{num_epochs} - {phase} '
                         f'Loss: {total_loss.item():.4f},'
                         f'Duration {(time.time() - tepoch_time):.2f}')
 
                     self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',
                                                                            legend=phase,
-                                                                           x=epoch,
+                                                                           x=epoch+1,
                                                                            y=epoch_loss),
                                                      dataset_id=self.model_entity.dataset_id)
 
@@ -219,8 +222,11 @@ class ClipAdapter(dl.BaseModelAdapter):
             else:
                 not_improving_epochs += 1
             if not_improving_epochs > early_stopping_epochs and early_stop is True:
-                logger.info("Early stop achieved at epoch ", epoch + 1)
+                logger.info(f"Early stop achieved at epoch {epoch + 1}")
                 end_training = True
+            if faas_callback is not None:
+                faas_callback(epoch, num_epochs)
+
         return
 
     def convert_from_dtlpy(self, data_path, **kwargs):
