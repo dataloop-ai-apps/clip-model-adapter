@@ -1,8 +1,9 @@
 import os
 import clip
 import json
-import logging
 import time
+import datetime
+import logging
 import dtlpy as dl
 import numpy as np
 from pathlib import Path
@@ -21,18 +22,32 @@ logger = logging.getLogger('[openai-clip]')
 # clip available models: ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px']
 
 class ImageTextDataset(Dataset):
-    def __init__(self, list_image_path, list_txt, preprocess):
-        self.image_path = list_image_path
+    def __init__(self, data_path, preprocess):
+        json_path = os.path.join(data_path, "json")
+        image_path = os.path.join(data_path, "images")
+        self.pairs = []
+        json_files = Path(json_path).rglob("*.json")
+        for json_file in json_files:
+            with open(json_file, 'r') as f:
+                data = json.load(f)
+            for item in data:
+                image_filepath = os.path.join(image_path, item['filename'][1:])
+                if not os.path.exists(image_filepath):
+                    continue
+                caption = item.get('metadata', {}).get('system', {}).get('description', '')
+                self.pairs.append({'image_filepath': image_filepath, 'caption': caption})
         # you can tokenize everything at once in here(slow at the beginning), or tokenize it in the training loop.
-        self.title = clip.tokenize(list_txt, context_length=77, truncate=True)
         self.preprocess = preprocess
 
     def __len__(self):
-        return len(self.title)
+        return len(self.pairs)
 
     def __getitem__(self, idx):
-        image = self.preprocess(Image.open(self.image_path[idx]))  # Image from PIL module
-        title = self.title[idx]
+        # Image 
+        item = self.pairs[idx]
+        image = self.preprocess(Image.open(item['image_filepath']).convert('RGB'))  # Image from PIL module
+        # Text
+        title = clip.tokenize(item['caption'], context_length=77, truncate=True)
         return image, title
 
 
@@ -93,6 +108,56 @@ class ClipAdapter(dl.BaseModelAdapter):
             embeddings.append(embedding)
         return embeddings
 
+    
+    def prepare_data(self, dataset: dl.Dataset, root_path=None, data_path=None, output_path=None, overwrite=False, **kwargs):
+        # define paths
+        dataloop_path = dl.service_defaults.DATALOOP_PATH
+        root_path = self.adapter_defaults.resolve("root_path", root_path)
+        data_path = self.adapter_defaults.resolve("data_path", data_path)
+        output_path = self.adapter_defaults.resolve("output_path", output_path)
+
+        if root_path is None:
+            now = datetime.datetime.now()
+            root_path = os.path.join(dataloop_path,
+                                     'model_data',
+                                     "{s_id}_{s_n}".format(s_id=self.model_entity.id, s_n=self.model_entity.name),
+                                     now.strftime('%Y-%m-%d-%H%M%S'),
+                                     )
+        if data_path is None:
+            data_path = os.path.join(root_path, 'datasets', self.model_entity.dataset.id)
+            os.makedirs(data_path, exist_ok=True)
+        if output_path is None:
+            output_path = os.path.join(root_path, 'output')
+            os.makedirs(output_path, exist_ok=True)
+
+        if len(os.listdir(data_path)) > 0:
+            self.logger.warning("Data path directory ({}) is not empty..".format(data_path))
+
+        # Download the subset items
+        subsets = self.model_entity.metadata.get("system", dict()).get("subsets", None)
+        if subsets is None:
+            raise ValueError("Model (id: {}) must have subsets in metadata.system.subsets".format(self.model_entity.id))
+        for subset, filters_dict in subsets.items():
+            filters = dl.Filters(custom_filter=filters_dict)
+            data_subset_base_path = os.path.join(data_path, subset)
+            if os.path.isdir(data_subset_base_path) and not overwrite:
+                # existing and dont overwrite
+                self.logger.debug(f"Subset {subset!r} Existing (and overwrite=False). Skipping.")
+                continue
+            else:
+                self.logger.debug(f"Downloading subset {subset!r} of {self.model_entity.dataset.name}")
+
+            jsons_path = os.path.join(data_subset_base_path, "json")
+            os.makedirs(jsons_path, exist_ok=True)
+            jsons = dataset.export(filters=filters, local_path=jsons_path)
+            images_path = os.path.join(data_subset_base_path, "images")
+            os.makedirs(images_path, exist_ok=True)
+            images = dataset.items.download(filters=filters,
+                                            local_path=images_path,
+                                            to_items_folder=False)
+
+        return root_path, data_path, output_path
+    
     def train(self, data_path, output_path, **kwargs):
         self.model.to(device=self.device)
         self.model.train()
@@ -120,18 +185,26 @@ class ClipAdapter(dl.BaseModelAdapter):
         # prepare data #
         ################
         # use downloaded prompt items to get image and text pairs
-        train_items, train_captions = self.get_img_txt_pairs(os.path.join(data_path, 'train'))
-        val_items, val_captions = self.get_img_txt_pairs(os.path.join(data_path, 'validation'))
-        train_dataset = ImageTextDataset(train_items, train_captions, self.preprocess)
-        val_dataset = ImageTextDataset(val_items, val_captions, self.preprocess)
+        train_dataset = ImageTextDataset(data_path=os.path.join(data_path, 'train'), preprocess=self.preprocess)
+        val_dataset = ImageTextDataset(data_path=os.path.join(data_path, 'validation'), preprocess=self.preprocess)
 
-        dataloaders = {'train': DataLoader(train_dataset,
-                                           batch_size=batch_size),
-                       'val': DataLoader(val_dataset,
-                                         batch_size=batch_size)}
+        # DataLoaders with optimizations
+        dataloaders = {
+            'train': DataLoader(
+                train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+            ),
+            'val': DataLoader(
+                val_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+            )
+        }
         logger.info(
             f"Dataloaders created. Train dataset: {len(train_dataset)} items, validation dataset: "
-            f"{len(val_dataset)} items.")
+            f"{len(val_dataset)} items. Batch size: {batch_size}, Num workers: 4, Pin memory: {self.device.type == 'cuda'}")
+        logger.info(f"Training for {num_epochs} epochs. Learning rate: {learning_rate}, Weight decay: {weight_decay}, Early stopping: {early_stop}")
 
         #################
         # prepare model #
@@ -146,12 +219,15 @@ class ClipAdapter(dl.BaseModelAdapter):
                                      betas=betas,
                                      eps=episilon,
                                      weight_decay=weight_decay)
+        # Add learning rate scheduler
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2)
 
         for epoch in range(num_epochs):
             if end_training:
                 break
             logger.info(f"Epoch {epoch+1}/{num_epochs} Start...")
             tepoch_time = time.time()
+            val_loss = None  # Initialize val_loss for each epoch
             # Each epoch has a training and validation phase
             for phase in ['train', 'val']:
                 if phase == 'train':
@@ -164,25 +240,20 @@ class ClipAdapter(dl.BaseModelAdapter):
 
                 with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch+1}/{num_epochs} - {phase} phase: ") as tepoch:
                     for idx, batch in enumerate(tepoch):
-                        optimizer.zero_grad()
-
                         images, texts = batch
-                        images = images.to(self.device)
-                        texts = texts.to(self.device)
+                        images = images.to(self.device) # [B, 3, 224, 224]
+                        texts = texts.to(self.device).squeeze(1) # [B, 77]
                         num_pairs = len(images)
                         if num_pairs == 1:
                             logger.warning("Must have batch size > 1. Skipping item.")
                             continue
 
-                        # forward pass for model predictions
-                        logits_per_image, logits_per_text = self.model(images, texts)
-
-                        # calc ground truth + loss
                         ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
-                        total_loss = (loss_img(logits_per_image, ground_truth) +
-                                      loss_txt(logits_per_text, ground_truth)) / 2
-                        # backprop
                         if phase == 'train':
+                            optimizer.zero_grad()
+                            logits_per_image, logits_per_text = self.model(images, texts)
+                            total_loss = (loss_img(logits_per_image, ground_truth) +
+                                          loss_txt(logits_per_text, ground_truth)) / 2
                             total_loss.backward()
 
                             if self.device == "cpu":
@@ -192,6 +263,11 @@ class ClipAdapter(dl.BaseModelAdapter):
                                 optimizer.step()
                                 clip.model.convert_weights(self.model)
                             tepoch.set_postfix(Training_loss=f"{total_loss.item():.4f}")
+                        else:
+                            with torch.no_grad():
+                                logits_per_image, logits_per_text = self.model(images, texts)
+                                total_loss = (loss_img(logits_per_image, ground_truth) +
+                                              loss_txt(logits_per_text, ground_truth)) / 2
 
                         # statistics
                         total_imgs += num_pairs
@@ -201,23 +277,32 @@ class ClipAdapter(dl.BaseModelAdapter):
                         if phase == "val":
                             val_loss = epoch_loss
 
-                    logger.info(
-                        f'Epoch {epoch+1}/{num_epochs} - {phase} '
-                        f'Loss: {total_loss.item():.4f},'
-                        f'Duration {(time.time() - tepoch_time):.2f}')
+                logger.info(
+                    f'Epoch {epoch+1}/{num_epochs} - {phase} '
+                    f'Loss: {total_loss.item():.4f},'
+                    f'Duration {(time.time() - tepoch_time):.2f}')
 
-                    self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',
-                                                                           legend=phase,
-                                                                           x=epoch+1,
-                                                                           y=epoch_loss),
-                                                     dataset_id=self.model_entity.dataset_id)
+                self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',
+                                                                       legend=phase,
+                                                                       x=epoch+1,
+                                                                       y=epoch_loss),
+                                                 dataset_id=self.model_entity.dataset_id)
 
-            if val_loss < best_loss:
+            # Scheduler step on validation loss
+            if val_loss is not None:
+                scheduler.step(val_loss)
+
+            if val_loss is not None and val_loss < best_loss:
                 not_improving_epochs = 0
                 best_loss = val_loss
                 logger.info(
-                    f'Best validation loss decreased ({best_loss:.4f} --> {val_loss:.4f}). Saving model ...')
-                torch.save({'model_state_dict': self.model.state_dict()},
+                    f'Best validation loss decreased (prev: {best_loss:.4f} --> new: {val_loss:.4f}). Saving model ...')
+                torch.save({
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'epoch': epoch + 1,
+                    'best_loss': best_loss
+                },
                            os.path.join(output_path, self.weights_filename))
             else:
                 not_improving_epochs += 1
