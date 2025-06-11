@@ -15,13 +15,9 @@ class ClipPrepare(dl.BaseServiceRunner):
     def convert_to_prompt_dataset(dataset_from: dl.Dataset):
         items = dataset_from.items.list()
         try:
-            dataset_to = dataset_from.project.datasets.get(dataset_name=f"{dataset_from.name} prompt items")
-            if dataset_to.items_count > 0:
-                suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
-                dataset_to = dataset_from.project.datasets.create(
-                    dataset_name=f"{dataset_from.name} prompt items-{suffix}"
-                )
-        except dl.exceptions.BadRequest:
+            dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items")
+        except Exception as e:
+            print("Prompt item dataset already exists. Creating new prompt item dataset.")
             suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
             dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items-{suffix}")
 
@@ -46,12 +42,12 @@ class ClipPrepare(dl.BaseServiceRunner):
         else:
             print(f"Item {item.id} has no description. Trying directory name.")
             item_dir = item.dir.split('/')[-1]
-            if item_dir != '':
+            if item_dir != "":
                 print(f"Using directory name: {item_dir}")
                 caption = "this is a photo of a " + item_dir
             else:
                 print(f"Item {item.id} has no directory name. Using empty string.")
-                caption = ''
+                caption = ""
         new_name = Path(item.name).stem + '.json'
 
         prompt_item = dl.PromptItem(name=new_name)
@@ -72,9 +68,9 @@ class ClipPrepare(dl.BaseServiceRunner):
 
 
 if __name__ == "__main__":
-    dl.login()
-    PROJECT_NAME = "<your project name>"
-    DATASET_NAME = "<your dataset name>"
+    # dl.login()
+    PROJECT_NAME = "test mars surface yy" # "<your project name>"
+    DATASET_NAME = "Mars Surface Images with Captions" # "<your dataset name>"
     project = dl.projects.get(PROJECT_NAME)
     dataset = project.datasets.get(DATASET_NAME)
     prompt_dataset = ClipPrepare.convert_dataset(dataset)
