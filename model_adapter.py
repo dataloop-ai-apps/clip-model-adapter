@@ -123,9 +123,16 @@ class ClipAdapter(dl.BaseModelAdapter):
         ################
         # prepare data #
         ################
+        root_path, data_path, output_path = self.prepare_data(self.model_entity.dataset, data_path=data_path, output_path=output_path)
+        # TODO still split train and val items
+        
         # use downloaded prompt items to get image and text pairs
-        train_items, train_captions = self.get_img_txt_pairs(os.path.join(data_path, 'train'))
-        val_items, val_captions = self.get_img_txt_pairs(os.path.join(data_path, 'validation'))
+        # train_items, train_captions = self.get_img_txt_pairs(os.path.join(data_path, 'train'))
+        # val_items, val_captions = self.get_img_txt_pairs(os.path.join(data_path, 'validation'))
+        
+        # prepare the pairs
+        train_items, train_captions = self.get_pair_paths(os.path.join(data_path, 'train'))
+        val_items, val_captions = self.get_pair_paths(os.path.join(data_path, 'validation'))
         train_dataset = ImageTextDataset(train_items, train_captions, self.preprocess)
         val_dataset = ImageTextDataset(val_items, val_captions, self.preprocess)
 
@@ -258,16 +265,101 @@ class ClipAdapter(dl.BaseModelAdapter):
                     f'Make sure there are items with annotations in the data subsets.'
                 )
 
-    def prepare_data(self, data_path, **kwargs):
-        dataset: dl.Dataset = self.model_entity.dataset
-        one_single_json = dataset.export(local_path=data_path, wait=False)
-        
-        ret_list = dataset.items.download()  # filters=filters, local_path=data_subset_base_path)
+    def prepare_data(
+        self, dataset: dl.Dataset, root_path=None, data_path=None, output_path=None, overwrite=False, **kwargs
+    ):
+        """
+        Prepares dataset locally before training or evaluation and
+        download the specific subset selected to data_path and preforms `self.convert` to the data_path dir
+        **This function overwrites the BaseModelAdapter.prepare_data function.**
 
-        one_single_json = one_single_json.wait()
-        # one_single_json.download(local_path=data_path)  # ??
-        # prepare the pairs
-        image_paths, item_captions = self.get_img_txt_pairs(data_path)
+        :param dataset: dl.Dataset
+        :param root_path: `str` root directory for training. default is "tmp". Can be set using self.adapter_defaults.root_path
+        :param data_path: `str` dataset directory. default <root_path>/"data". Can be set using self.adapter_defaults.data_path
+        :param output_path: `str` save everything to this folder. default <root_path>/"output". Can be set using self.adapter_defaults.output_path
+
+        :param bool overwrite: overwrite the data path (download again). default is False
+        """
+        # define paths
+        root_path = self.adapter_defaults.resolve("root_path", root_path)
+        data_path = self.adapter_defaults.resolve("data_path", data_path)
+        output_path = self.adapter_defaults.resolve("output_path", output_path)
+
+        if root_path is None:
+            root_path = os.path.join(os.getcwd(), 'tmp', self.model_entity.id)
+        if data_path is None:
+            data_path = os.path.join(root_path, 'datasets', self.model_entity.dataset.id)
+            os.makedirs(data_path, exist_ok=True)
+        if output_path is None:
+            output_path = os.path.join(root_path, 'output')
+            os.makedirs(output_path, exist_ok=True)
+
+        if len(os.listdir(data_path)) > 0:
+            logger.warning(f"Data path directory ({data_path}) is not empty..")
+
+        subsets = self.model_entity.metadata.get("system", dict()).get("subsets", None)
+        if subsets is None:
+            raise ValueError(f"Model (id: {self.model_entity.id}) must have subsets in metadata.system.subsets")
+        for subset, filters_dict in subsets.items():
+            filters = dl.Filters(custom_filter=filters_dict)
+            data_subset_base_path = os.path.join(data_path, subset)
+            if os.path.isdir(data_subset_base_path) and not overwrite:
+                # existing and dont overwrite
+                logger.debug(f"Subset {subset} already exists (and overwrite=False). Skipping.")
+            else:
+                logger.debug(f"Downloading subset {subset} of {self.model_entity.dataset.name}")
+
+                # export dataset json data
+                dataset.export(local_path=root_path, export_type="json")
+                ret_list = dataset.items.download(local_path=root_path)
+
+                if isinstance(ret_list, list) and len(ret_list) == 0:
+                    raise ValueError(
+                        f"No items downloaded for subset {subset}! Cannot train model with empty subset.\n"
+                        f"Subset {subset} filters: {filters.prepare()}"
+                    )
+        # check for subsets
+        self.convert_from_dtlpy(data_path=data_path, **kwargs)
+
+        return root_path, data_path, output_path
+
+    @staticmethod
+    def get_pair_paths(root_path, overwrite=False):
+        # Processes dataset exports to pair images with their captions:
+        # 1. Dataset export creates a single JSON file in root_path containing all item metadata
+        # 2. Dataset download places image files in root_path/items/ directory
+        # 3. This method parses the JSON to match each image with its caption from the metadata
+        # Returns: Lists of paired image paths and their corresponding captions
+
+        # Find first json file in root_path
+        json_files = list(Path(root_path).glob('*.json'))
+        if not json_files:
+            raise ValueError(f"No JSON files found in {root_path}. Check that the export was successful.")
+        items_json_path = json_files[0]
+
+        # Load the items JSON
+        with open(items_json_path) as f:
+            items_data = json.load(f)
+
+        image_paths = []
+        captions = []
+
+        # Process each item
+        for item in items_data:
+            if item['type'] != 'file':
+                continue
+
+            # Get image path
+            filename = item['filename'].lstrip('/')
+            image_path = os.path.join(root_path, filename)
+
+            # Get caption from metadata
+            if 'description' in item:
+                caption = item['description']
+                image_paths.append(image_path)
+                captions.append(caption)
+
+        return image_paths, captions
 
     @staticmethod
     def get_img_txt_pairs(data_path, overwrite=False):
