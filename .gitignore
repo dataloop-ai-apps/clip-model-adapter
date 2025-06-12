@@ -161,10 +161,6 @@ Thumbs.db
 tmp/
 .dataloop/
 .env
-<<<<<<< HEAD
-.vscode/
-=======
 .vscode/
 
 scripts/
->>>>>>> 4aff34d10792b1a7af6002cf1ef28f35ba4c4d92

@@ -35,17 +35,32 @@ class ImageTextDataset(Dataset):
                 image_filepath = os.path.join(image_path, item['filename'][1:])
                 if not os.path.exists(image_filepath):
                     continue
-                caption = item.get('metadata', {}).get('system', {}).get('description', '')
-                self.pairs.append({'image_filepath': image_filepath, 'caption': caption})
+                # check if its a prompt item
+                if Path(image_filepath).suffix == '.json':
+                    image_filepath = ClipAdapter._download_stream(image_filepath)
+
+                    if item["annotationsCount"] > 0:
+                        annot = item["annotations"][0]
+                        if annot["label"] == "free-text":
+                            caption = annot.get("coordinates", "")
+                        else:
+                            raise TypeError(
+                                f"No free-text annotation found in json file {image_filepath}. Please check item and annotation."
+                            )
+                    else:
+                        raise ValueError(f"No annotations found in json file {image_filepath} to use as image caption.")
+                else:
+                    caption = item.get("metadata", {}).get("system", {}).get("description", "")
+
+                self.pairs.append({"image_filepath": image_filepath, "caption": caption})
         # you can tokenize everything at once in here(slow at the beginning), or tokenize it in the training loop.
-        self.title = clip.tokenize(list_txt, context_length=77, truncate=True)
         self.preprocess = preprocess
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        # Image 
+        # Image
         item = self.pairs[idx]
         image = self.preprocess(Image.open(item['image_filepath']).convert('RGB'))  # Image from PIL module
         # Text
@@ -79,8 +94,8 @@ class ClipAdapter(dl.BaseModelAdapter):
         logger.info(f"Loaded model CLIP {self.arch_name} successfully")
 
     def save(self, local_path, **kwargs):
-        """saves configuration and weights locally
-            the function is called in save_to_model which first save locally and then uploads to model entity
+        """
+        Saves configuration and weights locally
 
         :param local_path: `str` directory path in local FileSystem
         """
@@ -106,15 +121,16 @@ class ClipAdapter(dl.BaseModelAdapter):
                 embedding = features[0].cpu().detach().numpy().tolist()
             else:
                 logger.info(
-                    f'Unsupported mimetype for CLIP: {type(item)}. '
-                    f'Features not extracted for item {item.name} ID {item.id}, skipping.'
+                    f"Unsupported mimetype for CLIP: {type(item)}. "
+                    f"Features not extracted for item {item.name} ID {item.id}, skipping."
                 )
                 embedding = None
             embeddings.append(embedding)
         return embeddings
 
-    
-    def prepare_data(self, dataset: dl.Dataset, root_path=None, data_path=None, output_path=None, overwrite=False, **kwargs):
+    def prepare_data(
+        self, dataset: dl.Dataset, root_path=None, data_path=None, output_path=None, overwrite=False, **kwargs
+    ):
         # define paths
         dataloop_path = dl.service_defaults.DATALOOP_PATH
         root_path = self.adapter_defaults.resolve("root_path", root_path)
@@ -123,11 +139,12 @@ class ClipAdapter(dl.BaseModelAdapter):
 
         if root_path is None:
             now = datetime.datetime.now()
-            root_path = os.path.join(dataloop_path,
-                                     'model_data',
-                                     "{s_id}_{s_n}".format(s_id=self.model_entity.id, s_n=self.model_entity.name),
-                                     now.strftime('%Y-%m-%d-%H%M%S'),
-                                     )
+            root_path = os.path.join(
+                dataloop_path,
+                "model_data",
+                "{s_id}_{s_n}".format(s_id=self.model_entity.id, s_n=self.model_entity.name),
+                now.strftime("%Y-%m-%d-%H%M%S"),
+            )
         if data_path is None:
             data_path = os.path.join(root_path, 'datasets', self.model_entity.dataset.id)
             os.makedirs(data_path, exist_ok=True)
@@ -154,15 +171,13 @@ class ClipAdapter(dl.BaseModelAdapter):
 
             jsons_path = os.path.join(data_subset_base_path, "json")
             os.makedirs(jsons_path, exist_ok=True)
-            jsons = dataset.export(filters=filters, local_path=jsons_path)
+            jsons = dataset.export(filters=filters, local_path=jsons_path, include_annotations=True)
             images_path = os.path.join(data_subset_base_path, "images")
             os.makedirs(images_path, exist_ok=True)
-            images = dataset.items.download(filters=filters,
-                                            local_path=images_path,
-                                            to_items_folder=False)
+            images = dataset.items.download(filters=filters, local_path=images_path, to_items_folder=False)
 
         return root_path, data_path, output_path
-    
+
     def train(self, data_path, output_path, **kwargs):
         self.model.to(device=self.device)
         self.model.train()
@@ -182,9 +197,6 @@ class ClipAdapter(dl.BaseModelAdapter):
         end_training = False
 
         # Callback for updating progress bar
-        faas_callback = kwargs.get('on_epoch_end_callback') 
-
-        # Callback for updating progress bar
         faas_callback = kwargs.get('on_epoch_end_callback')
 
         logger.info("Model set to train mode.")
@@ -198,24 +210,16 @@ class ClipAdapter(dl.BaseModelAdapter):
 
         # DataLoaders with optimizations
         dataloaders = {
-            'train': DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-            ),
-            'val': DataLoader(
-                val_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-            )
+            'train': DataLoader(train_dataset, batch_size=batch_size, shuffle=True),
+            'val': DataLoader(val_dataset, batch_size=batch_size, shuffle=False),
         }
         logger.info(
             f"Dataloaders created. Train dataset: {len(train_dataset)} items, validation dataset: "
-            f"{len(val_dataset)} items."
+            f"{len(val_dataset)} items. Batch size: {batch_size}, Num workers: 4, Pin memory: {self.device.type == 'cuda'}"
         )
-            f"Dataloaders created. Train dataset: {len(train_dataset)} items, validation dataset: "
-            f"{len(val_dataset)} items. Batch size: {batch_size}, Num workers: 4, Pin memory: {self.device.type == 'cuda'}")
-        logger.info(f"Training for {num_epochs} epochs. Learning rate: {learning_rate}, Weight decay: {weight_decay}, Early stopping: {early_stop}")
+        logger.info(
+            f"Training for {num_epochs} epochs. Learning rate: {learning_rate}, Weight decay: {weight_decay}, Early stopping: {early_stop}"
+        )
 
         #################
         # prepare model #
@@ -228,11 +232,6 @@ class ClipAdapter(dl.BaseModelAdapter):
         optimizer = torch.optim.Adam(
             self.model.parameters(), lr=learning_rate, betas=betas, eps=episilon, weight_decay=weight_decay
         )
-        optimizer = torch.optim.Adam(self.model.parameters(),
-                                     lr=learning_rate,
-                                     betas=betas,
-                                     eps=episilon,
-                                     weight_decay=weight_decay)
         # Add learning rate scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2)
 
@@ -255,26 +254,22 @@ class ClipAdapter(dl.BaseModelAdapter):
                 with tqdm(
                     dataloaders[phase], unit='batch', desc=f"Epoch {epoch+1}/{num_epochs} - {phase} phase: "
                 ) as tepoch:
-                with tqdm(dataloaders[phase], unit='batch', desc=f"Epoch {epoch+1}/{num_epochs} - {phase} phase: ") as tepoch:
                     for idx, batch in enumerate(tepoch):
                         images, texts = batch
-                        images = images.to(self.device) # [B, 3, 224, 224]
-                        texts = texts.to(self.device).squeeze(1) # [B, 77]
+                        images = images.to(self.device)  # [B, 3, 224, 224]
+                        texts = texts.to(self.device).squeeze(1)  # [B, 77]
                         num_pairs = len(images)
                         if num_pairs == 1:
                             logger.warning("Must have batch size > 1. Skipping item.")
                             continue
 
                         ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
-                        total_loss = (
-                            loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
-                        ) / 2
-                        # backprop
                         if phase == 'train':
                             optimizer.zero_grad()
                             logits_per_image, logits_per_text = self.model(images, texts)
-                            total_loss = (loss_img(logits_per_image, ground_truth) +
-                                          loss_txt(logits_per_text, ground_truth)) / 2
+                            total_loss = (
+                                loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
+                            ) / 2
                             total_loss.backward()
 
                             if self.device == "cpu":
@@ -287,8 +282,9 @@ class ClipAdapter(dl.BaseModelAdapter):
                         else:
                             with torch.no_grad():
                                 logits_per_image, logits_per_text = self.model(images, texts)
-                                total_loss = (loss_img(logits_per_image, ground_truth) +
-                                              loss_txt(logits_per_text, ground_truth)) / 2
+                                total_loss = (
+                                    loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
+                                ) / 2
 
                         # statistics
                         total_imgs += num_pairs
@@ -298,25 +294,16 @@ class ClipAdapter(dl.BaseModelAdapter):
                         if phase == "val":
                             val_loss = epoch_loss
 
-                    logger.info(
-                        f'Epoch {epoch+1}/{num_epochs} - {phase} '
-                        f'Loss: {total_loss.item():.4f},'
-                        f'Duration {(time.time() - tepoch_time):.2f}'
-                    )
                 logger.info(
-                    f'Epoch {epoch+1}/{num_epochs} - {phase} '
-                    f'Loss: {total_loss.item():.4f},'
-                    f'Duration {(time.time() - tepoch_time):.2f}')
+                    f"Epoch {epoch+1}/{num_epochs} - {phase} "
+                    f"Loss: {total_loss.item():.4f}, "
+                    f"Duration {(time.time() - tepoch_time):.2f}"
+                )
 
-                    self.model_entity.metrics.create(
-                        samples=dl.PlotSample(figure='loss', legend=phase, x=epoch + 1, y=epoch_loss),
-                        dataset_id=self.model_entity.dataset_id,
-                    )
-                self.model_entity.metrics.create(samples=dl.PlotSample(figure='loss',
-                                                                       legend=phase,
-                                                                       x=epoch+1,
-                                                                       y=epoch_loss),
-                                                 dataset_id=self.model_entity.dataset_id)
+                self.model_entity.metrics.create(
+                    samples=dl.PlotSample(figure='loss', legend=phase, x=epoch + 1, y=epoch_loss),
+                    dataset_id=self.model_entity.dataset_id,
+                )
 
             # Scheduler step on validation loss
             if val_loss is not None:
@@ -325,19 +312,18 @@ class ClipAdapter(dl.BaseModelAdapter):
             if val_loss is not None and val_loss < best_loss:
                 not_improving_epochs = 0
                 best_loss = val_loss
-                logger.info(f'Best validation loss decreased ({best_loss:.4f} --> {val_loss:.4f}). Saving model ...')
-                torch.save(
-                    {'model_state_dict': self.model.state_dict()}, os.path.join(output_path, self.weights_filename)
-                )
                 logger.info(
-                    f'Best validation loss decreased (prev: {best_loss:.4f} --> new: {val_loss:.4f}). Saving model ...')
-                torch.save({
-                    'model_state_dict': self.model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'epoch': epoch + 1,
-                    'best_loss': best_loss
-                },
-                           os.path.join(output_path, self.weights_filename))
+                    f'Best validation loss decreased (prev: {best_loss:.4f} --> new: {val_loss:.4f}). Saving model ...'
+                )
+                torch.save(
+                    {
+                        'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'epoch': epoch + 1,
+                        'best_loss': best_loss,
+                    },
+                    os.path.join(output_path, self.weights_filename),
+                )
             else:
                 not_improving_epochs += 1
             if not_improving_epochs > early_stopping_epochs and early_stop is True:
@@ -351,60 +337,25 @@ class ClipAdapter(dl.BaseModelAdapter):
     def convert_from_dtlpy(self, data_path, **kwargs):
         # Subsets validation
         subsets = self.model_entity.metadata.get("system", {}).get("subsets", None)
-        if 'train' not in subsets:
+        if "train" not in subsets:
             raise ValueError(
-                'Could not find train set. CLIP requires train and validation set for training. '
-                'Add a train set DQL filter in the dl.Model metadata'
+                "Could not find train set in the model metadata. CLIP requires train and validation set for training. "
+                "Add a train set DQL filter in the dl.Model metadata"
             )
-        if 'validation' not in subsets:
+        if "validation" not in subsets:
             raise ValueError(
-                'Could not find validation set. CLIP requires train and validation set for training. '
-                'Add a validation set DQL filter in the dl.Model metadata'
+                "Could not find validation set in the model metadata. CLIP requires train and validation set for training. "
+                "Add a validation set DQL filter in the dl.Model metadata"
             )
 
         for subset, filters_dict in subsets.items():
             filters = dl.Filters(custom_filter=filters_dict)
             pages = self.model_entity.dataset.items.list(filters=filters)
             if pages.items_count == 0:
-                raise ValueError(f'Could not find items with free-text annotations in subset {subset}. '
-                                 f'Make sure there are items with annotations in the data subsets.')
-
-    @staticmethod
-    def get_img_txt_pairs(data_path, overwrite=False):
-        logger.debug(f"Data path: {data_path}")
-        path = Path(data_path)
-        # list all downloaded prompt item jsons and download images from link
-        item_jsons = (path / "items").rglob("*.json")
-        with ThreadPoolExecutor() as executor:
-            image_paths = list(
-                executor.map(lambda item_file: ClipAdapter._download_stream(item_file, overwrite), item_jsons)
-            )
-        # image_paths = []  # DEBUG
-        # for item_file in item_jsons:
-        #     image_paths.append(ClipAdapter._download_stream(item_file, overwrite))
-
-        item_captions = []
-        annots_files = (path / 'json').rglob("*.json")
-        for src_file in annots_files:
-            with open(src_file, 'r') as f:
-                data = json.load(f)
-            if len(data['annotations']) > 0:
-                annot = data['annotations'][0]
-                if annot['label'] == 'free-text':
-                    item_captions.append(annot.get('coordinates', ''))
-                else:
-                    raise TypeError(
-                        f"No free-text annotation found in json file {src_file}. Please check annotation type."
-                    )
-            else:
-                raise ValueError(f"No annotations found in json file {src_file} to use as image caption.")
-
-        for root, dirs, files in os.walk(data_path, topdown=False):
-            for dir_name in dirs:
-                dir_path = os.path.join(root, dir_name)
-                if not os.listdir(dir_path):
-                    os.rmdir(dir_path)
-        return image_paths, item_captions
+                raise ValueError(
+                    f"Could not find matching items in subset {subset}. "
+                    f"Make sure there are items in the data subsets."
+                )
 
     @staticmethod
     def _download_stream(item_file, overwrite=False):
