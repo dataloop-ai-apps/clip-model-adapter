@@ -158,7 +158,10 @@ class ClipAdapter(dl.BaseModelAdapter):
         # Download the subset items
         subsets = self.model_entity.metadata.get("system", dict()).get("subsets", None)
         if subsets is None:
-            raise ValueError(f"Model (id: {self.model_entity.id}) must have subsets in metadata.system.subsets")
+            raise ValueError(
+                f"Model (id: {self.model_entity.id}) must have subsets in metadata.system.subsets"
+                "Add a subset DQL filters to the model metadata"
+            )
         for subset, filters_dict in subsets.items():
             filters = dl.Filters(custom_filter=filters_dict)
             data_subset_base_path = os.path.join(data_path, subset)
@@ -176,11 +179,12 @@ class ClipAdapter(dl.BaseModelAdapter):
             os.makedirs(images_path, exist_ok=True)
             images = dataset.items.download(filters=filters, local_path=images_path, to_items_folder=False)
 
-            # validate that items were downloaded
-            pages = self.model_entity.dataset.items.list(filters=filters)
-            if pages.items_count == 0:
-                raise ValueError(f"Could not get matching items for subset {subset} with filter {filters_dict}. "
-                                 f"Make sure there are items in the data subsets.")
+            # Check that jsons and images directories are not empty
+            if not os.listdir(jsons_path) or not os.listdir(images_path):
+                raise ValueError(
+                    f"No items were downloaded for subset {subset} with filter {filters_dict}."
+                    "Please check items have been assigned to the subset."
+                )
 
         return root_path, data_path, output_path
 
@@ -339,29 +343,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                 faas_callback(epoch, num_epochs)
 
         return
-
-    def convert_from_dtlpy(self, data_path, **kwargs):
-        # Subsets validation
-        subsets = self.model_entity.metadata.get("system", {}).get("subsets", None)
-        if "train" not in subsets:
-            raise ValueError(
-                "Could not find train set in the model metadata. CLIP requires train and validation set for training. "
-                "Add a train set DQL filter in the dl.Model metadata"
-            )
-        if "validation" not in subsets:
-            raise ValueError(
-                "Could not find validation set in the model metadata. CLIP requires train and validation set for training. "
-                "Add a validation set DQL filter in the dl.Model metadata"
-            )
-
-        for subset, filters_dict in subsets.items():
-            filters = dl.Filters(custom_filter=filters_dict)
-            pages = self.model_entity.dataset.items.list(filters=filters)
-            if pages.items_count == 0:
-                raise ValueError(
-                    f"Could not find matching items in subset {subset}. "
-                    f"Make sure there are items in the data subsets."
-                )
 
     @staticmethod
     def _download_stream(item_file, overwrite=False):
