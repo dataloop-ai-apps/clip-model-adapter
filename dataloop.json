@@ -111,7 +111,7 @@
         "moduleName": "clip-module",
         "scope": "project",
         "status": "pre-trained",
-        "outputType": "text",
+        "outputType": "embeddings",
         "configuration": {
           "model_name": "ViT-B/32",
           "embeddings_size": 512,

@@ -5,7 +5,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 
-class ClipPrepare:
+class ClipPrepare(dl.BaseServiceRunner):
     @staticmethod
     def convert_dataset(dataset):
         dataset_to = ClipPrepare.convert_to_prompt_dataset(dataset_from=dataset)
@@ -15,13 +15,10 @@ class ClipPrepare:
     def convert_to_prompt_dataset(dataset_from: dl.Dataset):
         items = dataset_from.items.list()
         try:
-            dataset_to = dataset_from.project.datasets.get(dataset_name=f"{dataset_from.name} prompt items")
-            if dataset_to.items_count > 0:
-                suffix = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
-                dataset_to = dataset_from.project.datasets.create(
-                    dataset_name=f"{dataset_from.name} prompt items-{suffix}")
-        except dl.exceptions.BadRequest:
-            suffix = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
+            dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items")
+        except Exception as e:
+            print("Prompt item dataset already exists. Creating new prompt item dataset.")
+            suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
             dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items-{suffix}")
 
         # use thread multiprocessing to get items and convert them to prompt items
@@ -45,34 +42,27 @@ class ClipPrepare:
         else:
             print(f"Item {item.id} has no description. Trying directory name.")
             item_dir = item.dir.split('/')[-1]
-            if item_dir != '':
+            if item_dir != "":
                 print(f"Using directory name: {item_dir}")
                 caption = "this is a photo of a " + item_dir
             else:
                 print(f"Item {item.id} has no directory name. Using empty string.")
-                caption = ''
+                caption = ""
         new_name = Path(item.name).stem + '.json'
 
         prompt_item = dl.PromptItem(name=new_name)
-        prompt_item.add(message={"content": [{"mimetype": dl.PromptType.IMAGE,  # role default is user
-                                              "value": item.stream}]})
+        prompt_item.add(
+            message={"content": [{"mimetype": dl.PromptType.IMAGE, "value": item.stream}]}  # role default is user
+        )
         new_metadata = item.metadata
         if existing_subsets is True:
             new_metadata["system"] = new_metadata.get("system", {})
-            new_metadata["system"]["subsets"] = item.metadata.get("system", {}).get(
-                "subsets", {}
-            )
+            new_metadata["system"]["subsets"] = item.metadata.get("system", {}).get("subsets", {})
         new_item = dataset.items.upload(
-            prompt_item,
-            remote_name=new_name,
-            remote_path=item.dir,
-            overwrite=True,
-            item_metadata=new_metadata,
+            prompt_item, remote_name=new_name, remote_path=item.dir, overwrite=True, item_metadata=new_metadata
         )
         prompt_item._item = new_item
-        prompt_item.add(message={"role": "assistant",
-                                 "content": [{"mimetype": dl.PromptType.TEXT,
-                                              "value": caption}]})
+        prompt_item.add(message={"role": "assistant", "content": [{"mimetype": dl.PromptType.TEXT, "value": caption}]})
 
         return new_item
 

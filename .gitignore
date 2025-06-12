@@ -162,3 +162,5 @@ tmp/
 .dataloop/
 .env
 .vscode/
+
+scripts/

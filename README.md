@@ -24,13 +24,13 @@ first need to carefully study their capabilities in relation to the specific con
 
 ## Requirements
 
-* dtlpy
-* ftfy
-* matplotlib
-* pandas
-* regex
-* scikit-learn
-* git+https://github.com/openai/CLIP.git
+* `dtlpy`
+* `ftfy`
+* `matplotlib`
+* `pandas`
+* `regex`
+* `scikit-learn`
+* `git+https://github.com/openai/CLIP.git`
 * An account in the [Dataloop platform](https://console.dataloop.ai/)
 
 ## Installation:
@@ -43,7 +43,7 @@ Dataloop platform.
 
 ### Model Fine-tuning
 
-For training, **items must be converted into prompt item objects**, with the image as the prompt
+For training, _**_items must be converted into prompt item objects**_, with the image as the prompt
 and the corresponding caption as the response (i.e. a text annotation). 
 
 First, upload all images into a dataset in the Dataloop platform. This will also serve as the dataset to be searched 
