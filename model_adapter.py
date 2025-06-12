@@ -153,12 +153,12 @@ class ClipAdapter(dl.BaseModelAdapter):
             os.makedirs(output_path, exist_ok=True)
 
         if len(os.listdir(data_path)) > 0:
-            self.logger.warning("Data path directory ({}) is not empty..".format(data_path))
+            self.logger.warning(f"Data path directory ({data_path}) is not empty..")
 
         # Download the subset items
         subsets = self.model_entity.metadata.get("system", dict()).get("subsets", None)
         if subsets is None:
-            raise ValueError("Model (id: {}) must have subsets in metadata.system.subsets".format(self.model_entity.id))
+            raise ValueError(f"Model (id: {self.model_entity.id}) must have subsets in metadata.system.subsets")
         for subset, filters_dict in subsets.items():
             filters = dl.Filters(custom_filter=filters_dict)
             data_subset_base_path = os.path.join(data_path, subset)
@@ -175,6 +175,12 @@ class ClipAdapter(dl.BaseModelAdapter):
             images_path = os.path.join(data_subset_base_path, "images")
             os.makedirs(images_path, exist_ok=True)
             images = dataset.items.download(filters=filters, local_path=images_path, to_items_folder=False)
+
+            # validate that items were downloaded
+            pages = self.model_entity.dataset.items.list(filters=filters)
+            if pages.items_count == 0:
+                raise ValueError(f"Could not get matching items for subset {subset} with filter {filters_dict}. "
+                                 f"Make sure there are items in the data subsets.")
 
         return root_path, data_path, output_path
 
