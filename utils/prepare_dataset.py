@@ -15,9 +15,19 @@ class ClipPrepare(dl.BaseServiceRunner):
     def convert_to_prompt_dataset(dataset_from: dl.Dataset):
         items = dataset_from.items.list()
         try:
+<<<<<<< HEAD
             dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items")
         except Exception as e:
             print("Prompt item dataset already exists. Creating new prompt item dataset.")
+=======
+            dataset_to = dataset_from.project.datasets.get(dataset_name=f"{dataset_from.name} prompt items")
+            if dataset_to.items_count > 0:
+                suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
+                dataset_to = dataset_from.project.datasets.create(
+                    dataset_name=f"{dataset_from.name} prompt items-{suffix}"
+                )
+        except dl.exceptions.BadRequest:
+>>>>>>> 4aff34d10792b1a7af6002cf1ef28f35ba4c4d92
             suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
             dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items-{suffix}")
 
