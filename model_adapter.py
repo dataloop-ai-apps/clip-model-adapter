@@ -204,7 +204,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         ################
         # prepare data #
         ################
-        # use downloaded prompt items to get image and text pairs
+        # Use downloaded items to get image and text pairs
         train_dataset = ImageTextDataset(data_path=os.path.join(data_path, 'train'), preprocess=self.preprocess)
         val_dataset = ImageTextDataset(data_path=os.path.join(data_path, 'validation'), preprocess=self.preprocess)
 
