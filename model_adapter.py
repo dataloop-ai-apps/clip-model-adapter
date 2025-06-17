@@ -75,6 +75,7 @@ class ClipAdapter(dl.BaseModelAdapter):
 
     def load(self, local_path, **kwargs):
         self.arch_name = self.configuration.get("model_name", "ViT-B/32")
+        self.configuration['embeddings_size'] = 512
         self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if self.arch_name not in clip.available_models():
@@ -277,6 +278,12 @@ class ClipAdapter(dl.BaseModelAdapter):
                                 optimizer.step()
                                 clip.model.convert_weights(self.model)
                             tepoch.set_postfix(Training_loss=f"{total_loss.item():.4f}")
+                        # else:
+                        #     with torch.no_grad():
+                        #         logits_per_image, logits_per_text = self.model(images, texts)
+                        #         total_loss = (
+                        #             loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
+                        #         ) / 2
 
                         # statistics
                         total_imgs += num_pairs
