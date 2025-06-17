@@ -154,7 +154,7 @@ class ClipAdapter(dl.BaseModelAdapter):
             os.makedirs(output_path, exist_ok=True)
 
         if len(os.listdir(data_path)) > 0:
-            self.logger.warning("Data path directory ({}) is not empty..".format(data_path))
+            self.logger.warning(f"Data path directory ({data_path}) is not empty..")
 
         # Download the subset items
         subsets = self.model_entity.metadata.get("system", dict()).get("subsets", None)
@@ -183,12 +183,12 @@ class ClipAdapter(dl.BaseModelAdapter):
         self.model.to(device=self.device)
         self.model.train()
 
-        batch_size = self.configuration.get('batch_size', 32)
-        num_epochs = self.configuration.get('num_epochs', 20)
-        learning_rate = self.configuration.get('learning_rate', 5e-5)
+        batch_size = self.configuration.get('batch_size', 128)
+        num_epochs = self.configuration.get('num_epochs', 100)
         betas = self.configuration.get('betas', (0.9, 0.98))
         episilon = self.configuration.get('episilon', 1e-6)
-        weight_decay = self.configuration.get('weight_decay', 0.2)
+        learning_rate = self.configuration.get('learning_rate', 5e-8)
+        weight_decay = self.configuration.get('weight_decay', 0.001)
 
         # early stopping params
         best_loss = np.inf
@@ -278,12 +278,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                                 optimizer.step()
                                 clip.model.convert_weights(self.model)
                             tepoch.set_postfix(Training_loss=f"{total_loss.item():.4f}")
-                        # else:
-                        #     with torch.no_grad():
-                        #         logits_per_image, logits_per_text = self.model(images, texts)
-                        #         total_loss = (
-                        #             loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
-                        #         ) / 2
 
                         # statistics
                         total_imgs += num_pairs

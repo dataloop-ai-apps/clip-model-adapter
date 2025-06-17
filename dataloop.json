@@ -1,9 +1,9 @@
 {
-  "name": "clip-model-pretrained",
-  "displayName": "OpenAI CLIP",
+  "name": "clip-model-pretrained-DEBUG-UPDATED",
+  "displayName": "OpenAI CLIP DEBUG UPDATED",
   "description": "CLIP (Contrastive Language-Image Pretraining) model for retrieving the most relevant images given a text snippet. Copyright (c) 2021 OpenAI",
   "version": "1.0.5",
-  "scope": "public",
+  "scope": "project",
   "attributes": {
     "Category": "Model",
     "Hub": "Dataloop",
@@ -16,11 +16,6 @@
       "Text",
       "Multi Modal"
     ]
-  },
-  "codebase": {
-    "type": "git",
-    "gitUrl": "https://github.com/dataloop-ai-apps/clip-model-adapter",
-    "gitTag": "1.0.5"
   },
   "components": {
     "modules": [
@@ -107,14 +102,14 @@
     ],
     "models": [
       {
-        "name": "openai-clip",
+        "name": "openai-clip-DEBUG-UPDATED",
         "moduleName": "clip-module",
         "scope": "project",
         "status": "pre-trained",
         "outputType": "embedding",
         "configuration": {
           "model_name": "ViT-B/32",
-          "batch_size": 200,
+          "batch_size": 128,
           "num_epochs": 100,
           "early_stopping": true,
           "early_stopping_epochs": 5,

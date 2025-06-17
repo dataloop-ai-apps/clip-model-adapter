@@ -67,7 +67,7 @@ information.
 
 The basic configurations included are:
 * ```model_name```: architecture of the model (default: 'ViT-B/32', available options: 'RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px')
-* ```batch_size```: batch size to be used during the training (default: 200)
+* ```batch_size```: batch size to be used during the training (default: 128)
 * ```num_epochs```: number of epochs to train the model (default: 100)
 * ```early_stop```: boolean for early stopping (default: ```True```)
 * ```early_stopping_epochs```: number of epochs to wait before stopping training if no improvement (default: 5)
