@@ -254,7 +254,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                     dataloaders[phase], unit='batch', desc=f"Epoch {epoch+1}/{num_epochs} - {phase} phase: "
                 ) as tepoch:
                     for idx, batch in enumerate(tepoch):
-                        optimizer.zero_grad()
                         images, texts = batch
                         images = images.to(self.device)  # [B, 3, 224, 224]
                         texts = texts.to(self.device).squeeze(1)  # [B, 77]
@@ -262,13 +261,14 @@ class ClipAdapter(dl.BaseModelAdapter):
                         if num_pairs == 1:
                             logger.warning("Must have batch size > 1. Skipping item.")
                             continue
-                        logits_per_image, logits_per_text = self.model(images, texts)
-                        ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
-                        total_loss = (
-                            loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
-                        ) / 2
 
+                        ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
                         if phase == 'train':
+                            optimizer.zero_grad()
+                            logits_per_image, logits_per_text = self.model(images, texts)
+                            total_loss = (
+                                loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
+                            ) / 2
                             total_loss.backward()
 
                             if self.device == "cpu":
@@ -278,6 +278,12 @@ class ClipAdapter(dl.BaseModelAdapter):
                                 optimizer.step()
                                 clip.model.convert_weights(self.model)
                             tepoch.set_postfix(Training_loss=f"{total_loss.item():.4f}")
+                        else:
+                            with torch.no_grad():
+                                logits_per_image, logits_per_text = self.model(images, texts)
+                                total_loss = (
+                                    loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
+                                ) / 2
 
                         # statistics
                         total_imgs += num_pairs
