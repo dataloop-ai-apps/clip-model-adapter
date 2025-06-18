@@ -2,7 +2,7 @@
   "name": "clip-model-pretrained",
   "displayName": "OpenAI CLIP",
   "description": "CLIP (Contrastive Language-Image Pretraining) model for retrieving the most relevant images given a text snippet. Copyright (c) 2021 OpenAI",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "scope": "public",
   "attributes": {
     "Category": "Model",
