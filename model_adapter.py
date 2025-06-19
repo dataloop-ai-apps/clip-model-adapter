@@ -207,7 +207,8 @@ class ClipAdapter(dl.BaseModelAdapter):
         early_stopping_epochs = self.configuration.get('early_stopping_epochs', 5)
         end_training = False
 
-        # Callback for updating progress bar
+        # Progress bars
+        progress = kwargs.get('progress', None)
         faas_callback = kwargs.get('on_epoch_end_callback')
 
         logger.info("Model set to train mode.")
@@ -314,7 +315,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                     dataset_id=self.model_entity.dataset_id,
                 )
 
-
             if val_loss is not None and val_loss < best_loss:
                 not_improving_epochs = 0
                 best_loss = val_loss
@@ -333,12 +333,18 @@ class ClipAdapter(dl.BaseModelAdapter):
             else:
                 not_improving_epochs += 1
                 logger.info(f"Not improving epochs: {not_improving_epochs}")
+
             if not_improving_epochs > early_stopping_epochs and early_stop is True:
                 logger.info(f"Early stop achieved at epoch {epoch + 1}")
                 end_training = True
-            if faas_callback is not None:
-                faas_callback(epoch, num_epochs)
 
+            if end_training is True:
+                if progress is not None:
+                    progress.update(
+                        progress=100, message=f'Not improving after {not_improving_epochs} epochs, stopping training'
+                    )
+            elif faas_callback is not None:
+                faas_callback(epoch, num_epochs)
         return
 
     @staticmethod
