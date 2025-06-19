@@ -75,6 +75,7 @@ class ClipAdapter(dl.BaseModelAdapter):
 
     def load(self, local_path, **kwargs):
         self.arch_name = self.configuration.get("model_name", "ViT-B/32")
+        self.configuration['embeddings_size'] = 512
         self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         if self.arch_name not in clip.available_models():
@@ -192,12 +193,12 @@ class ClipAdapter(dl.BaseModelAdapter):
         self.model.to(device=self.device)
         self.model.train()
 
-        batch_size = self.configuration.get('batch_size', 32)
-        num_epochs = self.configuration.get('num_epochs', 20)
-        learning_rate = self.configuration.get('learning_rate', 5e-5)
+        batch_size = self.configuration.get('batch_size', 128)
+        num_epochs = self.configuration.get('num_epochs', 100)
         betas = self.configuration.get('betas', (0.9, 0.98))
         episilon = self.configuration.get('episilon', 1e-6)
-        weight_decay = self.configuration.get('weight_decay', 0.2)
+        learning_rate = self.configuration.get('learning_rate', 5e-8)
+        weight_decay = self.configuration.get('weight_decay', 0.001)
 
         # early stopping params
         best_loss = np.inf
@@ -206,7 +207,8 @@ class ClipAdapter(dl.BaseModelAdapter):
         early_stopping_epochs = self.configuration.get('early_stopping_epochs', 5)
         end_training = False
 
-        # Callback for updating progress bar
+        # Progress bars
+        progress = kwargs.get('progress', None)
         faas_callback = kwargs.get('on_epoch_end_callback')
 
         logger.info("Model set to train mode.")
@@ -242,8 +244,6 @@ class ClipAdapter(dl.BaseModelAdapter):
         optimizer = torch.optim.Adam(
             self.model.parameters(), lr=learning_rate, betas=betas, eps=episilon, weight_decay=weight_decay
         )
-        # Add learning rate scheduler
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=2)
 
         for epoch in range(num_epochs):
             if end_training:
@@ -315,10 +315,6 @@ class ClipAdapter(dl.BaseModelAdapter):
                     dataset_id=self.model_entity.dataset_id,
                 )
 
-            # Scheduler step on validation loss
-            if val_loss is not None:
-                scheduler.step(val_loss)
-
             if val_loss is not None and val_loss < best_loss:
                 not_improving_epochs = 0
                 best_loss = val_loss
@@ -336,12 +332,19 @@ class ClipAdapter(dl.BaseModelAdapter):
                 )
             else:
                 not_improving_epochs += 1
+                logger.info(f"Not improving epochs: {not_improving_epochs}")
+
             if not_improving_epochs > early_stopping_epochs and early_stop is True:
                 logger.info(f"Early stop achieved at epoch {epoch + 1}")
                 end_training = True
-            if faas_callback is not None:
-                faas_callback(epoch, num_epochs)
 
+            if end_training is True:
+                if progress is not None:
+                    progress.update(
+                        progress=100, message=f'Not improving after {not_improving_epochs} epochs, stopping training'
+                    )
+            elif faas_callback is not None:
+                faas_callback(epoch, num_epochs)
         return
 
     @staticmethod

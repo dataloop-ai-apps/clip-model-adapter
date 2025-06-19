@@ -33,29 +33,28 @@ first need to carefully study their capabilities in relation to the specific con
 * `git+https://github.com/openai/CLIP.git`
 * An account in the [Dataloop platform](https://console.dataloop.ai/)
 
-## Installation:
+## Installation
 
 To install the package and create the CLIP model adapter, you will need
 a [project](https://developers.dataloop.ai/tutorials/getting_started/sdk_overview/chapter/#to-create-a-new-project) and
 a [dataset](https://developers.dataloop.ai/tutorials/data_management/manage_datasets/chapter/#create-dataset) of images
-in the
-Dataloop platform.
+in the Dataloop platform.
 
 ### Model Fine-tuning
 
 For training, _**_items must be converted into prompt item objects**_, with the image as the prompt
-and the corresponding caption as the response (i.e. a text annotation). 
+and the corresponding caption as the response (i.e. a text annotation).
 
 First, upload all images into a dataset in the Dataloop platform. This will also serve as the dataset to be searched 
-after CLIP training is complete. 
+after CLIP training is complete.
 
-Then, create a prompt items dataset with the images 
-captions that points to the images in the first dataset. You can find some example code and functions in the utils script 
-[here](./utils/prepare_dataset.py).
+Then, create a prompt items dataset with the images captions that points to the images in the first dataset. You can 
+find some example code and functions in the utils script [here](./utils/prepare_dataset.py).
 
-Make sure the dataset has training and validation subsets are defined in the prompt items dataset (see docs
-[here](https://developers.dataloop.ai/tutorials/model_management/marketplace/chapter/#define-dataset-subsets) for
+Make sure the dataset has training and validation subsets are defined in the prompt items dataset (see docs 
+[here](https://developers.dataloop.ai/tutorials/model_management/marketplace/chapter/#define-dataset-subsets) for 
 further SDK information, or use ML Data Split in the dataset browser of the Dataloop platform).
+
 
 ### Editing the configuration
 
@@ -67,20 +66,18 @@ Click [here](https://developers.dataloop.ai/tutorials/model_management/ai_librar
 information.
 
 The basic configurations included are:
-* ```model_name```: architecture of the model (default: 'ViT-B/32', available options: 'RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px')
-* ```num_epochs```: number of epochs to train the model (default: 50)
-* ```batch_size```: batch size to be used during the training (default: 2)
-* ```device```: whether to train on ```cpu``` or ```cuda``` (default to automatic detection of whether the instance has
-  a GPU)
+* ```model_name```: architecture of the model (default: 'ViT-B/32', available options: 'RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px', however use of some other models may require more powerful podtypes)
+* ```batch_size```: batch size to be used during the training (default: 128)
+* ```num_epochs```: number of epochs to train the model (default: 100)
 * ```early_stop```: boolean for early stopping (default: ```True```)
 * ```early_stopping_epochs```: number of epochs to wait before stopping training if no improvement (default: 5)
-* ```learning_rate```: learning rate for the optimizer (default: 5e-5)
 * ```betas```: betas for the optimizer (default: (0.9, 0.98))
 * ```epsilon```: epsilon for the optimizer (default: 1e-6)
-* ```weight_decay```: weight decay for the optimizer (default: 0.2)
+* ```learning_rate```: learning rate for the optimizer (default: 5e-8)
+* ```weight_decay```: weight decay for the optimizer (default: 0.001)
 
 Note: CLIP finetuning is very sensitive to hyperparameter values. It is recommended to use as large a batch size as 
-possible, and to use smaller learning rates if the model is not converging.
+possible, and to use smaller learning rate and weight decay if the model is not converging.
 
 ## Deployment
 

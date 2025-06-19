@@ -114,17 +114,17 @@
         "outputType": "embedding",
         "configuration": {
           "model_name": "ViT-B/32",
-          "embeddings_size": 512,
           "batch_size": 128,
-          "num_epochs": 20,
+          "num_epochs": 100,
           "early_stopping": true,
           "early_stopping_epochs": 5,
-          "learning_rate": 5e-5,
           "betas": [
             0.9,
             0.98
           ],
-          "weight_decay": 0.2
+          "epsilon": 1e-6,
+          "learning_rate": 5e-8,
+          "weight_decay": 0.001
         },
         "description": "OpenAI CLIP model for search with NLP"
       }
