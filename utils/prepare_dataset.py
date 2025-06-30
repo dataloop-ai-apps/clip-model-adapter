@@ -24,9 +24,8 @@ class ClipPrepare(dl.BaseServiceRunner):
         # use thread multiprocessing to get items and convert them to prompt items
         all_items = items.all()
         with ThreadPoolExecutor() as executor:
-            _ = executor.map(lambda item: ClipPrepare._convert_item(item_id=item.id, dataset=dataset_to), all_items)
+            _ = executor.map(lambda item: ClipPrepare._convert_item(item=item, dataset=dataset_to), all_items)
         # for item in items.all():
-        #     item = dataset_from.items.get(item_id=item.id)
         #     _ = _convert_item(item, dataset_to)
 
         new_recipe = dataset_from.get_recipe_ids()[0]
@@ -35,8 +34,7 @@ class ClipPrepare(dl.BaseServiceRunner):
 
     # add captions for the item either from description or from directory name
     @staticmethod
-    def _convert_item(item_id, dataset: dl.Dataset, existing_subsets=False):
-        item = dl.items.get(item_id=item_id)
+    def _convert_item(item, dataset: dl.Dataset, existing_subsets=False):
         if item.description is not None:
             caption = item.description
         else:
@@ -54,17 +52,17 @@ class ClipPrepare(dl.BaseServiceRunner):
         prompt_item.add(
             message={"content": [{"mimetype": dl.PromptType.IMAGE, "value": item.stream}]}  # role default is user
         )
-        new_metadata = item.metadata
+        new_metadata = {"user": item.metadata["user"], "system": {}}
         if existing_subsets is True:
-            new_metadata["system"] = new_metadata.get("system", {})
-            new_metadata["system"]["subsets"] = item.metadata.get("system", {}).get("subsets", {})
-        new_item = dataset.items.upload(
-            prompt_item, remote_name=new_name, remote_path=item.dir, overwrite=True, item_metadata=new_metadata
+            new_metadata["system"]["tags"] = item.metadata.get("system", {}).get("tags", {})
+        new_item = item.dataset.items.upload(
+            prompt_item, remote_name=new_name, remote_path="/prompt_items", overwrite=True, item_metadata=new_metadata
         )
         prompt_item._item = new_item
         prompt_item.add(message={"role": "assistant", "content": [{"mimetype": dl.PromptType.TEXT, "value": caption}]})
 
         return new_item
+
 
 
 if __name__ == "__main__":

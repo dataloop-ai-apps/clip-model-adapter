@@ -23,7 +23,7 @@ logger = logging.getLogger('[openai-clip]')
 
 
 class ImageTextDataset(Dataset):
-    def __init__(self, data_path, preprocess):
+    def __init__(self, data_path, preprocess, classification_mode=False):
         json_path = os.path.join(data_path, "json")
         image_path = os.path.join(data_path, "images")
         self.pairs = []
@@ -39,18 +39,29 @@ class ImageTextDataset(Dataset):
                 if Path(image_filepath).suffix == '.json':
                     image_filepath = ClipAdapter._download_stream(image_filepath)
 
-                    if item["annotationsCount"] > 0:
-                        annot = item["annotations"][0]
-                        if annot["label"] == "free-text":
-                            caption = annot.get("coordinates", "")
-                        else:
-                            raise TypeError(
-                                f"No free-text annotation found in json file {image_filepath}. Please check item and annotation."
-                            )
-                    else:
+                    if not item["annotationsCount"]:
                         raise ValueError(f"No annotations found in json file {image_filepath} to use as image caption.")
+                    annot = item["annotations"][0]
+                    if annot["label"] != "free-text":
+                        raise TypeError(
+                            f"No free-text annotation found in json file {image_filepath}. Please check item and annotation."
+                        )
+                    caption = annot.get("coordinates", "")
+                # checks if the model is being used as a classifier, assuming 1 label per item
+                elif classification_mode is True:
+                    if not item["annotationsCount"]:
+                        raise ValueError(f"No annotations found in json file {image_filepath} to use as image caption.")
+                    annot = item["annotations"][0]
+                    if annot["label"] != "classification":
+                        raise TypeError(
+                            f"No classification annotation found in json file {image_filepath}. Please check item and annotation."
+                        )
+                    caption = annot.get("value", "")
+                # get caption from item description
                 else:
                     caption = item.get("metadata", {}).get("system", {}).get("description", "")
+                    if caption == "":
+                        raise ValueError(f"No caption found in json file {image_filepath} to use as image caption.")
 
                 self.pairs.append({"image_filepath": image_filepath, "caption": caption})
         # you can tokenize everything at once in here(slow at the beginning), or tokenize it in the training loop.
@@ -93,6 +104,8 @@ class ClipAdapter(dl.BaseModelAdapter):
             logger.info("No previously saved model found, loading from default pre-trained weights.")
         self.model.eval()
         logger.info(f"Loaded model CLIP {self.arch_name} successfully")
+
+        self.as_classifier = self.configuration.get('as_classifier', False)
 
     def save(self, local_path, **kwargs):
         """
@@ -217,8 +230,16 @@ class ClipAdapter(dl.BaseModelAdapter):
         # prepare data #
         ################
         # Use downloaded items to get image and text pairs
-        train_dataset = ImageTextDataset(data_path=os.path.join(data_path, 'train'), preprocess=self.preprocess)
-        val_dataset = ImageTextDataset(data_path=os.path.join(data_path, 'validation'), preprocess=self.preprocess)
+        train_dataset = ImageTextDataset(
+            data_path=os.path.join(data_path, 'train'),
+            preprocess=self.preprocess,
+            classification_mode=self.as_classifier,
+        )
+        val_dataset = ImageTextDataset(
+            data_path=os.path.join(data_path, 'validation'),
+            preprocess=self.preprocess,
+            classification_mode=self.as_classifier,
+        )
 
         # DataLoaders with optimizations
         dataloaders = {
