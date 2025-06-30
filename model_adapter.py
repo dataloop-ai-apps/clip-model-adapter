@@ -106,6 +106,11 @@ class ClipAdapter(dl.BaseModelAdapter):
         logger.info(f"Loaded model CLIP {self.arch_name} successfully")
 
         self.as_classifier = self.configuration.get('as_classifier', False)
+        # create label to id mapping for classifier
+        if self.as_classifier is True:
+            self.label_to_id = {}
+            for label in self.model_entity.labels:
+                self.label_to_id[label.name] = label.id
 
     def save(self, local_path, **kwargs):
         """
@@ -145,6 +150,9 @@ class ClipAdapter(dl.BaseModelAdapter):
     def prepare_data(
         self, dataset: dl.Dataset, root_path=None, data_path=None, output_path=None, overwrite=False, **kwargs
     ):
+        """
+        Prepare data paths for dataset download for training
+        """
         # define paths
         dataloop_path = dl.service_defaults.DATALOOP_PATH
         root_path = self.adapter_defaults.resolve("root_path", root_path)
@@ -288,7 +296,13 @@ class ClipAdapter(dl.BaseModelAdapter):
                     for idx, batch in enumerate(tepoch):
                         images, texts = batch
                         images = images.to(self.device)  # [B, 3, 224, 224]
-                        texts = texts.to(self.device).squeeze(1)  # [B, 77]
+                        if self.as_classifier is False:
+                            texts = texts.to(self.device).squeeze(1)  # [B, 77]
+                        else:
+                            # convert labels to label encoding
+                            texts = torch.tensor(
+                                [self.label_to_id[label] for label in texts], dtype=torch.long, device=self.device
+                            )
                         num_pairs = len(images)
                         if num_pairs == 1:
                             logger.warning("Must have batch size > 1. Skipping item.")
@@ -298,9 +312,12 @@ class ClipAdapter(dl.BaseModelAdapter):
                         if phase == 'train':
                             optimizer.zero_grad()
                             logits_per_image, logits_per_text = self.model(images, texts)
-                            total_loss = (
-                                loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
-                            ) / 2
+                            if self.as_classifier is False:
+                                total_loss = (
+                                    loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
+                                ) / 2
+                            else:
+                                total_loss = loss_img(logits_per_image, ground_truth)
                             total_loss.backward()
 
                             if self.device == "cpu":
@@ -313,9 +330,12 @@ class ClipAdapter(dl.BaseModelAdapter):
                         else:
                             with torch.no_grad():
                                 logits_per_image, logits_per_text = self.model(images, texts)
-                                total_loss = (
-                                    loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
-                                ) / 2
+                                if self.as_classifier is False:
+                                    total_loss = (
+                                        loss_img(logits_per_image, ground_truth) + loss_txt(logits_per_text, ground_truth)
+                                    ) / 2
+                                else:
+                                    total_loss = loss_img(logits_per_image, ground_truth)
 
                         # statistics
                         total_imgs += num_pairs
