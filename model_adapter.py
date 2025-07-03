@@ -6,10 +6,10 @@ import datetime
 import logging
 import dtlpy as dl
 import numpy as np
-from pathlib import Path
 
 from PIL import Image
 from tqdm import tqdm
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import torch
@@ -23,45 +23,65 @@ logger = logging.getLogger('[openai-clip]')
 
 
 class ImageTextDataset(Dataset):
-    def __init__(self, data_path, preprocess, classification_mode=False):
+    def __init__(self, data_path, preprocess, model_labels=None):
         json_path = os.path.join(data_path, "json")
         image_path = os.path.join(data_path, "images")
+
+        self.classification_mode = None
+        self.label_to_id = {}
+
         self.pairs = []
         json_files = Path(json_path).rglob("*.json")
         for json_file in json_files:
             with open(json_file, 'r') as f:
                 data = json.load(f)
             for item in data:
+                if self.classification_mode is None:
+                    self.classification_mode = ImageTextDataset._check_classification_mode(item)
+                    if model_labels is not None:
+                        self.label_to_id = {label: i for i, label in enumerate(model_labels)}
+
+                # get the image filepath. if it didn't download, skip
                 image_filepath = os.path.join(image_path, item['filename'][1:])
                 if not os.path.exists(image_filepath):
                     continue
+                
+                # get caption from label annotation
+                if self.classification_mode is True:
+                    if item["annotationsCount"] == 0:
+                        logger.warning(f"No annotations found in item {item['id']} to use as image classification label. Skipping item.")
+                        continue
+                    # get the class annotation
+                    class_annot = next((a for a in item["annotations"] if a["type"] == "class"), None)
+                    if class_annot is None:
+                        logger.warning(f"No class annotation found in item {item['id']}. Skipping item.")
+                        continue
+                    
+                    label = class_annot.get("label")
+                    try:
+                        caption = self.label_to_id[label]
+                    except:
+                        self.label_to_id[label] = len(self.label_to_id)
+                        caption = self.label_to_id[label]
+                        logger.warning(f"Label {label} not found in model labels. Adding to model labels.")
                 # check if its a prompt item
-                if Path(image_filepath).suffix == '.json':
+                elif Path(image_filepath).suffix == '.json':
                     image_filepath = ClipAdapter._download_stream(image_filepath)
 
                     if not item["annotationsCount"]:
-                        raise ValueError(f"No annotations found in json file {image_filepath} to use as image caption.")
+                        logger.warning(f"No annotations found in json file {image_filepath} to use as image caption. Skipping item.")
+                        continue
                     annot = item["annotations"][0]
                     if annot["label"] != "free-text":
-                        raise TypeError(
-                            f"No free-text annotation found in json file {image_filepath}. Please check item and annotation."
-                        )
+                        logger.warning(f"No free-text annotation found in json file {image_filepath}. Skipping item.")
+                        continue
                     caption = annot.get("coordinates", "")
-                # checks if the model is being used as a classifier, assuming 1 label per item
-                elif classification_mode is True:
-                    if not item["annotationsCount"]:
-                        raise ValueError(f"No annotations found in json file {image_filepath} to use as image caption.")
-                    annot = item["annotations"][0]
-                    if annot["label"] != "classification":
-                        raise TypeError(
-                            f"No classification annotation found in json file {image_filepath}. Please check item and annotation."
-                        )
-                    caption = annot.get("value", "")
-                # get caption from item description
                 else:
-                    caption = item.get("metadata", {}).get("system", {}).get("description", "")
+                    # get caption from item description
+                    caption = item["description"]
                     if caption == "":
-                        raise ValueError(f"No caption found in json file {image_filepath} to use as image caption.")
+                        logger.warning(f"No caption found in json file {image_filepath} to use as image caption. Skipping item.")
+                        continue
 
                 self.pairs.append({"image_filepath": image_filepath, "caption": caption})
         # you can tokenize everything at once in here(slow at the beginning), or tokenize it in the training loop.
@@ -75,8 +95,27 @@ class ImageTextDataset(Dataset):
         item = self.pairs[idx]
         image = self.preprocess(Image.open(item['image_filepath']).convert('RGB'))  # Image from PIL module
         # Text
-        title = clip.tokenize(item['caption'], context_length=77, truncate=True)
+        if hasattr(self, 'classification_mode') and self.classification_mode:
+            # For classification mode, return the caption string directly
+            title = [item['caption']]
+        else:
+            # For regular mode, tokenize the caption
+            title = clip.tokenize(item['caption'], context_length=77, truncate=True)
         return image, title
+    
+    @staticmethod
+    def _check_classification_mode(item):
+        """Helper function to check if any of the annotations are of type 'class'"""
+        try:
+            for annot in item["annotations"]:
+                if annot["type"] == "class":
+                    mode = True
+                    break
+            else:
+                mode = False
+        except:
+            mode = False
+        return mode
 
 
 class ClipAdapter(dl.BaseModelAdapter):
@@ -89,6 +128,8 @@ class ClipAdapter(dl.BaseModelAdapter):
         self.configuration['embeddings_size'] = 512
         self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        logger.info(f"Loading model on device: {self.device}")
+        print(f"Loading model on device: {self.device}") #DEBUG
         if self.arch_name not in clip.available_models():
             raise ValueError(f"Model {self.arch_name} is not an available architecture for CLIP.")
         model_filepath = (
@@ -109,8 +150,9 @@ class ClipAdapter(dl.BaseModelAdapter):
         # create label to id mapping for classifier
         if self.as_classifier is True:
             self.label_to_id = {}
-            for label in self.model_entity.labels:
-                self.label_to_id[label.name] = label.id
+            for i, label in enumerate(self.model_entity.labels):
+                label_token = clip.tokenize(label, context_length=77, truncate=True)
+                self.label_to_id[label_token] = i
 
     def save(self, local_path, **kwargs):
         """
@@ -241,12 +283,12 @@ class ClipAdapter(dl.BaseModelAdapter):
         train_dataset = ImageTextDataset(
             data_path=os.path.join(data_path, 'train'),
             preprocess=self.preprocess,
-            classification_mode=self.as_classifier,
+            model_labels=self.model_entity.labels,
         )
         val_dataset = ImageTextDataset(
             data_path=os.path.join(data_path, 'validation'),
             preprocess=self.preprocess,
-            classification_mode=self.as_classifier,
+            model_labels=self.model_entity.labels,
         )
 
         # DataLoaders with optimizations
@@ -296,19 +338,28 @@ class ClipAdapter(dl.BaseModelAdapter):
                     for idx, batch in enumerate(tepoch):
                         images, texts = batch
                         images = images.to(self.device)  # [B, 3, 224, 224]
-                        if self.as_classifier is False:
-                            texts = texts.to(self.device).squeeze(1)  # [B, 77]
-                        else:
-                            # convert labels to label encoding
-                            texts = torch.tensor(
-                                [self.label_to_id[label] for label in texts], dtype=torch.long, device=self.device
-                            )
+
                         num_pairs = len(images)
                         if num_pairs == 1:
                             logger.warning("Must have batch size > 1. Skipping item.")
                             continue
 
-                        ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
+                        if self.as_classifier is False: # for regular mode
+                            texts = texts.to(self.device).squeeze(1)  # [B, 77]  #TODO See what this is for a normal dataset
+                            ground_truth = torch.arange(num_pairs, dtype=torch.long, device=self.device)
+                        else:
+                            # example of texts when using classification mode:
+                            # texts = [tensor([2, 3, 1, 1, 1, 0, 3, 3])]
+                            # TODO FIX THIS
+                            # some earlier auto generated code...
+                            # # convert labels to label encoding
+                            # texts = torch.tensor(
+                            #     [self.label_to_id[label] for label in texts.squeeze(1)], dtype=torch.long, device=self.device
+                            # )
+                            ground_truth = torch.tensor(
+                                [self.label_to_id[label] for label in texts.squeeze(1)], dtype=torch.long, device=self.device
+                            )
+
                         if phase == 'train':
                             optimizer.zero_grad()
                             logits_per_image, logits_per_text = self.model(images, texts)
@@ -318,6 +369,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                                 ) / 2
                             else:
                                 total_loss = loss_img(logits_per_image, ground_truth)
+                                logger.info(f"Logits per image: {logits_per_image.item()}") # DEBUG
                             total_loss.backward()
 
                             if self.device == "cpu":
