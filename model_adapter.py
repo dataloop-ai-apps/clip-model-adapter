@@ -129,7 +129,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         logger.info(f"Loading model on device: {self.device}")
-        print(f"Loading model on device: {self.device}") #DEBUG
+
         if self.arch_name not in clip.available_models():
             raise ValueError(f"Model {self.arch_name} is not an available architecture for CLIP.")
         model_filepath = (
