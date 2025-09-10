@@ -1,4 +1,5 @@
 import os
+import mimetypes
 import clip
 import json
 import time
@@ -78,6 +79,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         self.configuration['embeddings_size'] = 512
         self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        logger.info(f"Found device {self.device}")
         if self.arch_name not in clip.available_models():
             raise ValueError(f"Model {self.arch_name} is not an available architecture for CLIP.")
         model_filepath = (
@@ -119,11 +121,22 @@ class ClipAdapter(dl.BaseModelAdapter):
 
     def embed(self, batch, **kwargs):
         embeddings = [None] * len(batch)
+        image_batch = []
+        text_batch = []
+        image_indicies = []
+        text_indicies = []
+        for i_item, item in enumerate(batch):
+            if 'mimetype' in item.metadata['system']:
+                mimetype = item.metadata['system']['mimetype']
+            else:
+                mimetype = mimetypes.guess_type(item.filename)[0] or 'application/octet-stream'
+            if 'image/' in mimetype:
+                image_batch.append(item.download(save_locally=False, to_array=True))
+                image_indicies.append(i_item)
+            elif 'text/' in item.mimetype:
+                text_batch.append(item.download(save_locally=False).read().decode())
+                text_indicies.append(i_item)
 
-        image_batch = [Image.fromarray(item.download(save_locally=False, to_array=True)) for item in batch if 'image/' in item.mimetype]
-        text_batch = [item.download(save_locally=False).read().decode() for item in batch if 'text/' in item.mimetype]
-        image_indicies = [i for i, item in enumerate(batch) if 'image/' in item.mimetype]
-        text_indicies = [i for i, item in enumerate(batch) if 'text/' in item.mimetype]
         with torch.no_grad():
             if len(image_indicies) > 0:
                 images_preprocessed = torch.stack([self.preprocess(image_batch) for image_batch in image_batch]).to(self.device)
