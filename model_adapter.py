@@ -91,7 +91,17 @@ class ClipAdapter(dl.BaseModelAdapter):
             self.model.load_state_dict(checkpoint['model_state_dict'])
         else:
             logger.info("No previously saved model found, loading from default pre-trained weights.")
+        # warming up the model
+        self.model.to(self.device)
         self.model.eval()
+        # warm up the model
+        with torch.no_grad():
+            image = self.preprocess(Image.open(os.path.join('tests','assets','e2e_tests','datasets','clip_embed_dataset','items','img_pass.png')).convert('RGB'))
+            image = image.unsqueeze(0).to(self.device)
+            self.model.encode_image(image)
+            text = clip.tokenize("a photo of a dog", context_length=77, truncate=True).to(self.device)
+            self.model.encode_text(text)
+        logger.info("Model warmed up successfully")
         logger.info(f"Loaded model CLIP {self.arch_name} successfully")
 
     def save(self, local_path, **kwargs):
@@ -108,25 +118,25 @@ class ClipAdapter(dl.BaseModelAdapter):
         return item
 
     def embed(self, batch, **kwargs):
-        embeddings = []
-        for i, item in enumerate(batch):
-            if 'image/' in item.mimetype:
-                item_img = Image.fromarray(item.download(save_locally=False, to_array=True))
-                image = self.preprocess(item_img).unsqueeze(0).to(self.device)
-                features = self.model.encode_image(image)
-                embedding = features[0].cpu().detach().numpy().tolist()
-            elif 'text/' in item.mimetype:
-                text = item.download(save_locally=False).read().decode()
-                tokens = clip.tokenize([text], context_length=77, truncate=True).to(self.device)
-                features = self.model.encode_text(tokens)
-                embedding = features[0].cpu().detach().numpy().tolist()
-            else:
-                logger.info(
-                    f"Unsupported mimetype for CLIP: {type(item)}. "
-                    f"Features not extracted for item {item.name} ID {item.id}, skipping."
-                )
-                embedding = None
-            embeddings.append(embedding)
+        embeddings = [None] * len(batch)
+
+        image_batch = [Image.fromarray(item.download(save_locally=False, to_array=True)) for item in batch if 'image/' in item.mimetype]
+        text_batch = [item.download(save_locally=False).read().decode() for item in batch if 'text/' in item.mimetype]
+        image_indicies = [i for i, item in enumerate(batch) if 'image/' in item.mimetype]
+        text_indicies = [i for i, item in enumerate(batch) if 'text/' in item.mimetype]
+        with torch.no_grad():
+            if len(image_indicies) > 0:
+                images_preprocessed = torch.stack([self.preprocess(image_batch) for image_batch in image_batch]).to(self.device)
+                features = self.model.encode_image(images_preprocessed)
+                image_embeddings = features.cpu().detach().numpy().tolist()
+                for index, embedding in zip(image_indicies, image_embeddings):
+                    embeddings[index] = embedding
+            if len(text_indicies) > 0:
+                texts = clip.tokenize(text_batch, context_length=77, truncate=True).to(self.device)
+                features = self.model.encode_text(texts)
+                text_embeddings = features.cpu().detach().numpy().tolist()
+                for index, embedding in zip(text_indicies, text_embeddings):
+                    embeddings[index] = embedding
         return embeddings
 
     def prepare_data(

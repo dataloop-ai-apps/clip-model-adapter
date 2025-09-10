@@ -150,16 +150,16 @@
         "name": "clip-cpu",
         "runtime": {
           "podType": "regular-s",
-          "concurrency": 1,
+          "concurrency": 10,
           "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.0",
           "autoscaler": {
             "type": "rabbitmq",
             "minReplicas": 0,
             "maxReplicas": 2,
-            "queueLength": 100
+            "queueLength": 10
           }
         },
-        "executionTimeout": 360000
+        "executionTimeout": 36000
       }
     ]
   }
