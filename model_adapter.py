@@ -1,17 +1,17 @@
 import os
-import clip
+from pathlib import Path
+import threading
 import json
 import time
 import datetime
 import logging
 import dtlpy as dl
 import numpy as np
-from pathlib import Path
+import clip
+
 
 from PIL import Image
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor
-
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -71,26 +71,50 @@ class ImageTextDataset(Dataset):
 class ClipAdapter(dl.BaseModelAdapter):
     """
     Model Adapter for CLIP text and image embedding model from OpenAI
+    Supports concurrent GPU usage through MPS and proper memory management
     """
+    
+    # Class-level lock for GPU operations
+    _gpu_lock = threading.Lock()
+    _model_cache = {}  # Cache for shared models across processes
 
     def load(self, local_path, **kwargs):
         self.arch_name = self.configuration.get("model_name", "ViT-B/32")
         self.configuration['embeddings_size'] = 512
         self.weights_filename = self.configuration.get('weights_filename', 'best.pt')
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # Set device with MPS support
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda:0")
+            torch.cuda.set_per_process_memory_fraction(0.23)
+        else:
+            self.device = torch.device("cpu")
+            
         if self.arch_name not in clip.available_models():
             raise ValueError(f"Model {self.arch_name} is not an available architecture for CLIP.")
-        model_filepath = (
-            os.path.join(local_path, self.weights_filename)
-            if Path(self.weights_filename).stem not in clip.available_models()
-            else self.weights_filename
-        )
-        self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False)
-        if os.path.isfile(model_filepath) is True:  # and self.model.status != 'pre-trained':
-            checkpoint = torch.load(model_filepath, map_location=self.device)
-            self.model.load_state_dict(checkpoint['model_state_dict'])
+        
+        # Check if model is already cached (for concurrent processes)
+        cache_key = f"{self.arch_name}_{self.weights_filename}"
+        if cache_key in ClipAdapter._model_cache:
+            logger.info(f"Using cached model: {cache_key}")
+            self.model, self.preprocess = ClipAdapter._model_cache[cache_key]
         else:
-            logger.info("No previously saved model found, loading from default pre-trained weights.")
+            model_filepath = (
+                os.path.join(local_path, self.weights_filename)
+                if Path(self.weights_filename).stem not in clip.available_models()
+                else self.weights_filename
+            )
+            
+            with ClipAdapter._gpu_lock:  # Thread-safe model loading
+                self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False)
+                if os.path.isfile(model_filepath) is True:
+                    checkpoint = torch.load(model_filepath, map_location=self.device)
+                    self.model.load_state_dict(checkpoint['model_state_dict'])
+                else:
+                    logger.info("No previously saved model found, loading from default pre-trained weights.")
+                
+                # Cache the model for other processes
+                ClipAdapter._model_cache[cache_key] = (self.model, self.preprocess)
+        
         # warming up the model
         self.model.to(self.device)
         self.model.eval()
@@ -102,7 +126,7 @@ class ClipAdapter(dl.BaseModelAdapter):
             text = clip.tokenize("a photo of a dog", context_length=77, truncate=True).to(self.device)
             self.model.encode_text(text)
         logger.info("Model warmed up successfully")
-        logger.info(f"Loaded model CLIP {self.arch_name} successfully")
+        logger.info(f"Loaded model CLIP {self.arch_name} successfully on {self.device}")
 
     def save(self, local_path, **kwargs):
         """
@@ -124,19 +148,20 @@ class ClipAdapter(dl.BaseModelAdapter):
         text_batch = [item.download(save_locally=False).read().decode() for item in batch if 'text/' in item.mimetype]
         image_indicies = [i for i, item in enumerate(batch) if 'image/' in item.mimetype]
         text_indicies = [i for i, item in enumerate(batch) if 'text/' in item.mimetype]
-        with torch.no_grad():
-            if len(image_indicies) > 0:
-                images_preprocessed = torch.stack([self.preprocess(image_batch) for image_batch in image_batch]).to(self.device)
-                features = self.model.encode_image(images_preprocessed)
-                image_embeddings = features.cpu().detach().numpy().tolist()
-                for index, embedding in zip(image_indicies, image_embeddings):
-                    embeddings[index] = embedding
-            if len(text_indicies) > 0:
-                texts = clip.tokenize(text_batch, context_length=77, truncate=True).to(self.device)
-                features = self.model.encode_text(texts)
-                text_embeddings = features.cpu().detach().numpy().tolist()
-                for index, embedding in zip(text_indicies, text_embeddings):
-                    embeddings[index] = embedding
+        with ClipAdapter._gpu_lock:
+            with torch.no_grad():
+                if len(image_indicies) > 0:
+                    images_preprocessed = torch.stack([self.preprocess(image_batch) for image_batch in image_batch]).to(self.device)
+                    features = self.model.encode_image(images_preprocessed)
+                    image_embeddings = features.cpu().detach().numpy().tolist()
+                    for index, embedding in zip(image_indicies, image_embeddings):
+                        embeddings[index] = embedding
+                if len(text_indicies) > 0:
+                    texts = clip.tokenize(text_batch, context_length=77, truncate=True).to(self.device)
+                    features = self.model.encode_text(texts)
+                    text_embeddings = features.cpu().detach().numpy().tolist()
+                    for index, embedding in zip(text_indicies, text_embeddings):
+                        embeddings[index] = embedding
         return embeddings
 
     def prepare_data(
@@ -391,3 +416,4 @@ class ClipAdapter(dl.BaseModelAdapter):
         for p in model.parameters():
             p.data = p.data.float()
             p.grad.data = p.grad.data.float()
+    
