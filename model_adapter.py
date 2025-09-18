@@ -85,7 +85,7 @@ class ClipAdapter(dl.BaseModelAdapter):
             if Path(self.weights_filename).stem not in clip.available_models()
             else self.weights_filename
         )
-        self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False, download_root="./tmp/weights")
+        self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False, download_root="/tmp/weights")
         if os.path.isfile(model_filepath) is True:  # and self.model.status != 'pre-trained':
             checkpoint = torch.load(model_filepath, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
