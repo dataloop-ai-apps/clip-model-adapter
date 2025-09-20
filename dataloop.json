@@ -60,6 +60,7 @@
           },
           {
             "name": "embed_items",
+            "computeConfig": "clip-cpu-short",
             "input": [
               {
                 "type": "Item[]",
@@ -85,6 +86,7 @@
           },
           {
             "name": "embed_dataset",
+            "computeConfig": "clip-cpu-long",
             "input": [
               {
                 "type": "Dataset",
@@ -147,7 +149,7 @@
         "executionTimeout": 432000
       },
       {
-        "name": "clip-cpu",
+        "name": "clip-cpu-long",
         "runtime": {
           "podType": "regular-s",
           "concurrency": 10,
@@ -160,6 +162,22 @@
           }
         },
         "executionTimeout": 36000
+      },
+      {
+        "name": "clip-cpu-short",
+        "runtime": {
+          "podType": "regular-s",
+          "concurrency": 10,
+          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.0",
+          "autoscaler": {
+            "type": "rabbitmq",
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "queueLength": 10
+          }
+        },
+        "executionTimeout": 60,
+        "drainTime": 10
       }
     ]
   }
