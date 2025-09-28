@@ -4,6 +4,7 @@ import json
 import time
 import datetime
 import logging
+import traceback
 import dtlpy as dl
 import numpy as np
 from pathlib import Path
@@ -119,11 +120,26 @@ class ClipAdapter(dl.BaseModelAdapter):
 
     def embed(self, batch, **kwargs):
         embeddings = [None] * len(batch)
+        image_batch = []
+        text_batch = []
+        image_indicies = []
+        text_indicies = []
+        for idx, item in enumerate(batch):
+            if "image/" in item.mimetype:
+                try:
+                    image_batch.append(item.download(save_locally=False, to_array=True))
+                    image_indicies.append(idx)
+                except Exception as e:
+                    logger.error(f"Error downloading image {item.id}: {e}\n{traceback.format_exc()}")
+            elif "text/" in item.mimetype:
+                try:
+                    text_batch.append(item.download(save_locally=False).read().decode())
+                    text_indicies.append(idx)
+                except Exception as e:
+                    logger.error(f"Error downloading text {item.id}: {e}\n{traceback.format_exc()}")
+            else:
+                logger.error(f"Unsupported mimetype {item.mimetype} for item {item.id}")
 
-        image_batch = [Image.fromarray(item.download(save_locally=False, to_array=True)) for item in batch if 'image/' in item.mimetype]
-        text_batch = [item.download(save_locally=False).read().decode() for item in batch if 'text/' in item.mimetype]
-        image_indicies = [i for i, item in enumerate(batch) if 'image/' in item.mimetype]
-        text_indicies = [i for i, item in enumerate(batch) if 'text/' in item.mimetype]
         with torch.no_grad():
             if len(image_indicies) > 0:
                 images_preprocessed = torch.stack([self.preprocess(image_batch) for image_batch in image_batch]).to(self.device)
