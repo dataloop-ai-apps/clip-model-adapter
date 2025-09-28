@@ -4,6 +4,7 @@ import json
 import time
 import datetime
 import logging
+import traceback
 import dtlpy as dl
 import numpy as np
 from pathlib import Path
@@ -129,13 +130,13 @@ class ClipAdapter(dl.BaseModelAdapter):
                     image_batch.append(item.download(save_locally=False, to_array=True))
                     image_indicies.append(idx)
                 except Exception as e:
-                    logger.error(f"Error downloading image {item.id}: {e}")
+                    logger.error(f"Error downloading image {item.id}: {e}\n{traceback.format_exc()}")
             elif "text/" in item.mimetype:
                 try:
                     text_batch.append(item.download(save_locally=False).read().decode())
                     text_indicies.append(idx)
                 except Exception as e:
-                    logger.error(f"Error downloading text {item.id}: {e}")
+                    logger.error(f"Error downloading text {item.id}: {e}\n{traceback.format_exc()}")
             else:
                 logger.error(f"Unsupported mimetype {item.mimetype} for item {item.id}")
 
