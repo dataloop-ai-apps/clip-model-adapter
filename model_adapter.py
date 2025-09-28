@@ -127,7 +127,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         for idx, item in enumerate(batch):
             if "image/" in item.mimetype:
                 try:
-                    image_batch.append(item.download(save_locally=False, to_array=True))
+                    image_batch.append(Image.fromarray(item.download(save_locally=False, to_array=True)))
                     image_indicies.append(idx)
                 except Exception as e:
                     logger.error(f"Error downloading image {item.id}: {e}\n{traceback.format_exc()}")
