@@ -141,17 +141,13 @@ class ClipAdapter(dl.BaseModelAdapter):
 
         with torch.no_grad():
             if len(image_indicies) > 0:
-                images_preprocessed = torch.stack(
-                    [self.preprocess(image_batch) for image_batch in image_batch]
-                ).to(self.device)
+                images_preprocessed = torch.stack([self.preprocess(image_batch) for image_batch in image_batch]).to(self.device)
                 features = self.model.encode_image(images_preprocessed)
                 image_embeddings = features.cpu().detach().numpy().tolist()
                 for index, embedding in zip(image_indicies, image_embeddings):
                     embeddings[index] = embedding
             if len(text_indicies) > 0:
-                texts = clip.tokenize(text_batch, context_length=77, truncate=True).to(
-                    self.device
-                )
+                texts = clip.tokenize(text_batch, context_length=77, truncate=True).to(self.device)
                 features = self.model.encode_text(texts)
                 text_embeddings = features.cpu().detach().numpy().tolist()
                 for index, embedding in zip(text_indicies, text_embeddings):
