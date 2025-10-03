@@ -28,7 +28,7 @@
         "name": "clip-module",
         "entryPoint": "model_adapter.py",
         "className": "ClipAdapter",
-        "computeConfig": "clip-cpu",
+        "computeConfig": "clip-cpu-long",
         "description": "CLIP model adapter for search with NLP",
         "initInputs": [
           {
