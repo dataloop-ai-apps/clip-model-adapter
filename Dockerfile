@@ -8,9 +8,7 @@ RUN pip install --no-cache-dir --user \
     git+https://github.com/openai/CLIP.git
 
 # Pre-download CLIP ViT-B/32 model weights
-RUN python3 -c "import clip; import torch; model, preprocess = clip.load('ViT-B/32', device='cpu', jit=False, download_root='/tmp/weights'); print('ViT-B/32 model weights downloaded successfully')" && \
-    rm -rf /tmp/weights /tmp/* /var/tmp/* && \
-    pip cache purge || true
+RUN python3 -c "import clip; import torch; model, preprocess = clip.load('ViT-B/32', device='cpu', jit=False, download_root='/tmp/weights'); print('ViT-B/32 model weights downloaded successfully')"
 
-# docker build --no-cache -t gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.0 -f Dockerfile .
-# docker push gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.0
+# docker build --no-cache -t gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.2 -f Dockerfile .
+# docker push gcr.io/viewo-g/piper/agent/runner/apps/clip-model-adapter:0.1.2
