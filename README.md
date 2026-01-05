@@ -75,6 +75,7 @@ The basic configurations included are:
 * ```epsilon```: epsilon for the optimizer (default: 1e-6)
 * ```learning_rate```: learning rate for the optimizer (default: 5e-8)
 * ```weight_decay```: weight decay for the optimizer (default: 0.001)
+* ```upload_features```: set to true to enable embedding of prompt items text data (default:  ```False```)
 
 Note: CLIP finetuning is very sensitive to hyperparameter values. It is recommended to use as large a batch size as 
 possible, and to use smaller learning rate and weight decay if the model is not converging.
