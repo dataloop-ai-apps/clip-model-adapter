@@ -137,6 +137,17 @@ class ClipAdapter(dl.BaseModelAdapter):
                     text_indicies.append(idx)
                 except Exception as e:
                     logger.error(f"Error downloading text {item.id}: {e}\n{traceback.format_exc()}")
+            elif "application/json" in item.mimetype:
+                # Prompt items - only text content will be embedded
+                try:
+                    prompt_text = self._extract_text_from_prompt(item)
+                    if prompt_text:
+                        text_batch.append(prompt_text)
+                        text_indicies.append(idx)
+                    else:
+                        logger.warning(f"No text content found in prompt item {item.id}")
+                except Exception as e:
+                    logger.error(f"Error processing prompt item {item.id}: {e}\n{traceback.format_exc()}")
             else:
                 logger.error(f"Unsupported mimetype {item.mimetype} for item {item.id}")
 
@@ -372,6 +383,25 @@ class ClipAdapter(dl.BaseModelAdapter):
             elif faas_callback is not None:
                 faas_callback(epoch, num_epochs)
         return
+
+    def _extract_text_from_prompt(self, item: dl.Item):
+        """
+        Extract text content from a prompt item JSON.
+        Images inside prompt items will not be embedded.
+
+        Returns the text string if found, None otherwise.
+        """
+        prompt_item = dl.PromptItem.from_item(item=item)
+        messages_list = prompt_item.to_messages()
+        text_content = ''
+        for messages in messages_list:
+            for content in messages.get('content', []):
+                if content.get('type') == 'image_url':
+                    logger.warning(f"Images inside prompt items will not be embedded, only text. Item: {item.id}")
+                elif content.get('type') == 'text':
+                    text_content += content.get('text') + '\n'
+
+        return text_content
 
     @staticmethod
     def _download_stream(item_file, overwrite=False):
