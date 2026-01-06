@@ -137,7 +137,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                     text_indicies.append(idx)
                 except Exception as e:
                     logger.error(f"Error downloading text {item.id}: {e}\n{traceback.format_exc()}")
-            elif "application/" in item.mimetype:
+            elif "application/json" in item.mimetype:
                 # Prompt items - only text content will be embedded
                 try:
                     prompt_text = self._extract_text_from_prompt(item)
