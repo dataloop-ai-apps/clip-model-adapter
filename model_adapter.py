@@ -391,21 +391,15 @@ class ClipAdapter(dl.BaseModelAdapter):
 
         Returns the text string if found, None otherwise.
         """
-        prompt_json = json.loads(item.download(save_locally=False).read().decode())
-        prompts = prompt_json.get('prompts', {})
-        text_content = None
-
-        for prompt_key, prompt_value in prompts.items():
-            if not isinstance(prompt_value, list):
-                continue
-            for content in prompt_value:
-                mimetype = content.get("mimetype", "")
-                value = content.get("value")
-
-                if "image" in mimetype and value:
+        prompt_item = dl.PromptItem.from_item(item=item)
+        messages_list = prompt_item.to_messages()
+        text_content = ''
+        for messages in messages_list:
+            for content in messages.get('content', []):
+                if content.get('type') == 'image_url':
                     logger.warning(f"Images inside prompt items will not be embedded, only text. Item: {item.id}")
-                elif "text" in mimetype and value and text_content is None:
-                    text_content = value
+                elif content.get('type') == 'text':
+                    text_content += content.get('text') + '\n'
 
         return text_content
 
