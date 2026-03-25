@@ -4,7 +4,6 @@ import json
 import time
 import datetime
 import logging
-import traceback
 import dtlpy as dl
 import numpy as np
 from pathlib import Path
@@ -88,7 +87,7 @@ class ClipAdapter(dl.BaseModelAdapter):
         )
         self.model, self.preprocess = clip.load(name=self.arch_name, device=self.device, jit=False, download_root="/tmp/weights")
         if os.path.isfile(model_filepath) is True:  # and self.model.status != 'pre-trained':
-            checkpoint = torch.load(model_filepath, map_location=self.device)
+            checkpoint = torch.load(model_filepath, map_location=self.device, weights_only=True)
             self.model.load_state_dict(checkpoint['model_state_dict'])
         else:
             logger.info("No previously saved model found, loading from default pre-trained weights.")
@@ -129,14 +128,14 @@ class ClipAdapter(dl.BaseModelAdapter):
                 try:
                     image_batch.append(Image.fromarray(item.download(save_locally=False, to_array=True)))
                     image_indicies.append(idx)
-                except Exception as e:
-                    logger.error(f"Error downloading image {item.id}: {e}\n{traceback.format_exc()}")
+                except (OSError, ValueError, TypeError, RuntimeError) as e:
+                    logger.error(f"Error downloading image {item.id}: {type(e).__name__}: {e}")
             elif "text/" in item.mimetype:
                 try:
                     text_batch.append(item.download(save_locally=False).read().decode())
                     text_indicies.append(idx)
-                except Exception as e:
-                    logger.error(f"Error downloading text {item.id}: {e}\n{traceback.format_exc()}")
+                except (OSError, ValueError, TypeError, UnicodeDecodeError, RuntimeError) as e:
+                    logger.error(f"Error downloading text {item.id}: {type(e).__name__}: {e}")
             elif "application/json" in item.mimetype:
                 # Prompt items - only text content will be embedded
                 try:
@@ -146,8 +145,8 @@ class ClipAdapter(dl.BaseModelAdapter):
                         text_indicies.append(idx)
                     else:
                         logger.warning(f"No text content found in prompt item {item.id}")
-                except Exception as e:
-                    logger.error(f"Error processing prompt item {item.id}: {e}\n{traceback.format_exc()}")
+                except (OSError, ValueError, TypeError, KeyError, RuntimeError) as e:
+                    logger.error(f"Error processing prompt item {item.id}: {type(e).__name__}: {e}")
             else:
                 logger.error(f"Unsupported mimetype {item.mimetype} for item {item.id}")
 

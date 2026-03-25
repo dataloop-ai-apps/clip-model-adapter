@@ -1,5 +1,5 @@
 import dtlpy as dl
-import random, string
+import secrets, string
 from pathlib import Path
 
 from concurrent.futures import ThreadPoolExecutor
@@ -16,9 +16,9 @@ class ClipPrepare(dl.BaseServiceRunner):
         items = dataset_from.items.list()
         try:
             dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items")
-        except Exception as e:
+        except (ValueError, RuntimeError):
             print("Prompt item dataset already exists. Creating new prompt item dataset.")
-            suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
+            suffix = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(5))
             dataset_to = dataset_from.project.datasets.create(dataset_name=f"{dataset_from.name} prompt items-{suffix}")
 
         # use thread multiprocessing to get items and convert them to prompt items
