@@ -128,13 +128,13 @@ class ClipAdapter(dl.BaseModelAdapter):
                 try:
                     image_batch.append(Image.fromarray(item.download(save_locally=False, to_array=True)))
                     image_indicies.append(idx)
-                except (OSError, ValueError, TypeError, RuntimeError, dl.exceptions.PlatformException) as e:
+                except Exception as e:
                     logger.error(f"Error downloading image {item.id}: {type(e).__name__}: {e}")
             elif "text/" in item.mimetype:
                 try:
                     text_batch.append(item.download(save_locally=False).read().decode())
                     text_indicies.append(idx)
-                except (OSError, ValueError, TypeError, UnicodeDecodeError, RuntimeError, dl.exceptions.PlatformException) as e:
+                except Exception as e:
                     logger.error(f"Error downloading text {item.id}: {type(e).__name__}: {e}")
             elif "application/json" in item.mimetype:
                 # Prompt items - only text content will be embedded
@@ -145,7 +145,7 @@ class ClipAdapter(dl.BaseModelAdapter):
                         text_indicies.append(idx)
                     else:
                         logger.warning(f"No text content found in prompt item {item.id}")
-                except (OSError, ValueError, TypeError, KeyError, RuntimeError, dl.exceptions.PlatformException) as e:
+                except Exception as e:
                     logger.error(f"Error processing prompt item {item.id}: {type(e).__name__}: {e}")
             else:
                 logger.error(f"Unsupported mimetype {item.mimetype} for item {item.id}")
