@@ -116,6 +116,7 @@
         "outputType": "embedding",
         "configuration": {
           "model_name": "ViT-B/32",
+          "embeddings_size": 512,
           "batch_size": 32,
           "num_epochs": 100,
           "early_stopping": true,
