@@ -124,7 +124,15 @@ class ClipAdapter(dl.BaseModelAdapter):
         image_indicies = []
         text_indicies = []
         for idx, item in enumerate(batch):
-            if "image/" in item.mimetype:
+            if item.type == 'db_row':
+                buffer: io.BytesIO = item.download(save_locally=False)
+                data = json.loads(buffer.read())
+                column_name = self.model_entity.configuration.get("column", "content")
+                processed = data.get(column_name, data)
+                text_batch.append(processed)
+                text_indicies.append(idx)
+            
+            elif "image/" in item.mimetype:
                 try:
                     image_batch.append(Image.fromarray(item.download(save_locally=False, to_array=True)))
                     image_indicies.append(idx)
