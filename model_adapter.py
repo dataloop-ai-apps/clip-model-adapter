@@ -124,7 +124,16 @@ class ClipAdapter(dl.BaseModelAdapter):
         image_indicies = []
         text_indicies = []
         for idx, item in enumerate(batch):
-            if "image/" in item.mimetype:
+            if item.type == 'db_row':
+                buffer: io.BytesIO = item.download(save_locally=False)
+                data = json.loads(buffer.read())
+                column_name = self.model_entity.configuration.get("column", "content")
+                processed = data.get(column_name, data)
+                if isinstance(processed, str):
+                    text_batch.append(processed)
+                    text_indicies.append(idx)
+            
+            elif "image/" in item.mimetype:
                 try:
                     image_batch.append(Image.fromarray(item.download(save_locally=False, to_array=True)))
                     image_indicies.append(idx)
@@ -436,3 +445,8 @@ class ClipAdapter(dl.BaseModelAdapter):
         for p in model.parameters():
             p.data = p.data.float()
             p.grad.data = p.grad.data.float()
+if __name__ == "__main__":
+    dl.setenv('rc')
+    model_entity = dl.models.get(model_id="6a4633d787f9350a716561f3")
+    adapter = ClipAdapter(model_entity=model_entity)
+    adapter.embed_dataset(dataset=dl.datasets.get(dataset_id="6a688dccc3aa7838f70c803c"))
