@@ -6,8 +6,8 @@
   "scope": "public",
   "attributes": {
     "Category": "Model",
-    "Hub": "Dataloop",
-    "Deployed By": "Dataloop",
+    "Hub": "DDOE",
+    "Deployed By": "DDOE",
     "Provider": "Open AI",
     "License": "MIT",
     "NLP": "Embeddings",
@@ -44,14 +44,14 @@
               {
                 "type": "Model",
                 "name": "model",
-                "description": "Dataloop Model Entity"
+                "description": "DDOE Model Entity"
               }
             ],
             "output": [
               {
                 "type": "Model",
                 "name": "model",
-                "description": "Dataloop Model Entity"
+                "description": "DDOE Model Entity"
               }
             ],
             "displayName": "Train A Model",

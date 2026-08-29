@@ -3,7 +3,7 @@
 ## Introduction
 
 This repo is a model integration between [OpenAI's CLIP](https://github.com/openai/CLIP)
-model and [Dataloop](https://dataloop.ai/)
+model and [DDOE](https://dataloop.ai/)
 
 CLIP is a neural network trained on image and text pairs that can query the most relevant images for a given text
 snippet. It works without output specific task optimizing, similar to the GPT models' zero-shot capabilities. CLIP
@@ -31,21 +31,21 @@ first need to carefully study their capabilities in relation to the specific con
 * `regex`
 * `scikit-learn`
 * `git+https://github.com/openai/CLIP.git`
-* An account in the [Dataloop platform](https://console.dataloop.ai/)
+* An account in the [DDOE platform](https://console.dataloop.ai/)
 
 ## Installation
 
 To install the package and create the CLIP model adapter, you will need
 a [project](https://developers.dataloop.ai/tutorials/getting_started/sdk_overview/chapter/#to-create-a-new-project) and
 a [dataset](https://developers.dataloop.ai/tutorials/data_management/manage_datasets/chapter/#create-dataset) of images
-in the Dataloop platform.
+in the DDOE platform.
 
 ### Model Fine-tuning
 
 For training, _**_items must be converted into prompt item objects**_, with the image as the prompt
 and the corresponding caption as the response (i.e. a text annotation).
 
-First, upload all images into a dataset in the Dataloop platform. This will also serve as the dataset to be searched 
+First, upload all images into a dataset in the DDOE platform. This will also serve as the dataset to be searched 
 after CLIP training is complete.
 
 Then, create a prompt items dataset with the images captions that points to the images in the first dataset. You can 
@@ -53,7 +53,7 @@ find some example code and functions in the utils script [here](./utils/prepare_
 
 Make sure the dataset has training and validation subsets are defined in the prompt items dataset (see docs 
 [here](https://developers.dataloop.ai/tutorials/model_management/marketplace/chapter/#define-dataset-subsets) for 
-further SDK information, or use ML Data Split in the dataset browser of the Dataloop platform).
+further SDK information, or use ML Data Split in the dataset browser of the DDOE platform).
 
 
 ### Editing the configuration
