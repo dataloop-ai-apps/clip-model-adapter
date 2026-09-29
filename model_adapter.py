@@ -115,7 +115,19 @@ class ClipAdapter(dl.BaseModelAdapter):
         logger.info(f"Model saved to {model_path}")
 
     def prepare_item_func(self, item: dl.Item):
-        return item
+        # returns str (text / db row / prompt), np.ndarray (image) or None (failed / unsupported)
+        try:
+            if item.type != 'db_row' and "application/json" in item.mimetype:
+                # Prompt items - only text content will be embedded
+                prompt_text = self._extract_text_from_prompt(item)
+                if not prompt_text:
+                    logger.warning(f"No text content found in prompt item {item.id}")
+                return prompt_text or None
+            # db_row -> str, text -> str, image -> np.ndarray
+            return super().prepare_item_func(item)
+        except Exception as e:
+            logger.error(f"Error preparing item {item.id}: {type(e).__name__}: {e}")
+            return None
 
     def embed(self, batch, **kwargs):
         embeddings = [None] * len(batch)
@@ -123,42 +135,15 @@ class ClipAdapter(dl.BaseModelAdapter):
         text_batch = []
         image_indicies = []
         text_indicies = []
-        for idx, item in enumerate(batch):
-            if item.type == 'db_row':
-                # a database row has no file behind it - the base adapter reads the content column
-                # off its stream. the row mimetype is 'application/json', so it cannot be routed by
-                # the mimetype branches below
-                try:
-                    text_batch.append(super().prepare_item_func(item))
-                    text_indicies.append(idx)
-                except Exception as e:
-                    logger.error(f"Error reading database row {item.id}: {type(e).__name__}: {e}")
-
-            elif "image/" in item.mimetype:
-                try:
-                    image_batch.append(Image.fromarray(item.download(save_locally=False, to_array=True)))
-                    image_indicies.append(idx)
-                except Exception as e:
-                    logger.error(f"Error downloading image {item.id}: {type(e).__name__}: {e}")
-            elif "text/" in item.mimetype:
-                try:
-                    text_batch.append(item.download(save_locally=False).read().decode())
-                    text_indicies.append(idx)
-                except Exception as e:
-                    logger.error(f"Error downloading text {item.id}: {type(e).__name__}: {e}")
-            elif "application/json" in item.mimetype:
-                # Prompt items - only text content will be embedded
-                try:
-                    prompt_text = self._extract_text_from_prompt(item)
-                    if prompt_text:
-                        text_batch.append(prompt_text)
-                        text_indicies.append(idx)
-                    else:
-                        logger.warning(f"No text content found in prompt item {item.id}")
-                except Exception as e:
-                    logger.error(f"Error processing prompt item {item.id}: {type(e).__name__}: {e}")
+        for idx, data in enumerate(batch):
+            if isinstance(data, str) and data:
+                text_batch.append(data)
+                text_indicies.append(idx)
+            elif isinstance(data, np.ndarray):
+                image_batch.append(Image.fromarray(data))
+                image_indicies.append(idx)
             else:
-                logger.error(f"Unsupported mimetype {item.mimetype} for item {item.id}")
+                logger.error(f"Skipping batch entry {idx}: failed to load or unsupported type {type(data).__name__}")
 
         with torch.no_grad():
             if len(image_indicies) > 0:
@@ -447,12 +432,12 @@ class ClipAdapter(dl.BaseModelAdapter):
             p.data = p.data.float()
             p.grad.data = p.grad.data.float()
 if __name__ == "__main__":  
-    dl.setenv('rc')
+    dl.setenv('')
     # dl.login()
-    model_entity = dl.models.get(model_id="6aa8f6c4765f165de4c9a57a")
+    model_entity = dl.models.get(model_id="")
     adapter = ClipAdapter(model_entity=model_entity)
     # dataset = dl.datasets.get(dataset_id="6aaaa0324aa904decc180085")
     # print(dataset.items.list().items_count)
-    item = dl.items.get(item_id='6aaaa0324aa904decc180085_6aaaa0324aa904decc180085_7eb179e35c1158ee8ec1489b')
+    item = dl.items.get(item_id='')
     # adapter.embed_dataset(dataset=dataset,filters = dl.Filters(use_defaults=False) )
     adapter.embed_items(items=[item])
