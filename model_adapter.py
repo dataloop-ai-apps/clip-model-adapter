@@ -125,14 +125,15 @@ class ClipAdapter(dl.BaseModelAdapter):
         text_indicies = []
         for idx, item in enumerate(batch):
             if item.type == 'db_row':
-                buffer: io.BytesIO = item.download(save_locally=False)
-                data = json.loads(buffer.read())
-                column_name = self.model_entity.configuration.get("column", "content")
-                processed = data.get(column_name, data)
-                if isinstance(processed, str):
-                    text_batch.append(processed)
+                # a database row has no file behind it - the base adapter reads the content column
+                # off its stream. the row mimetype is 'application/json', so it cannot be routed by
+                # the mimetype branches below
+                try:
+                    text_batch.append(super().prepare_item_func(item))
                     text_indicies.append(idx)
-            
+                except Exception as e:
+                    logger.error(f"Error reading database row {item.id}: {type(e).__name__}: {e}")
+
             elif "image/" in item.mimetype:
                 try:
                     image_batch.append(Image.fromarray(item.download(save_locally=False, to_array=True)))
@@ -445,8 +446,13 @@ class ClipAdapter(dl.BaseModelAdapter):
         for p in model.parameters():
             p.data = p.data.float()
             p.grad.data = p.grad.data.float()
-if __name__ == "__main__":
+if __name__ == "__main__":  
     dl.setenv('rc')
-    model_entity = dl.models.get(model_id="6a4633d787f9350a716561f3")
+    # dl.login()
+    model_entity = dl.models.get(model_id="6aa8f6c4765f165de4c9a57a")
     adapter = ClipAdapter(model_entity=model_entity)
-    adapter.embed_dataset(dataset=dl.datasets.get(dataset_id="6a688dccc3aa7838f70c803c"))
+    # dataset = dl.datasets.get(dataset_id="6aaaa0324aa904decc180085")
+    # print(dataset.items.list().items_count)
+    item = dl.items.get(item_id='6aaaa0324aa904decc180085_6aaaa0324aa904decc180085_7eb179e35c1158ee8ec1489b')
+    # adapter.embed_dataset(dataset=dataset,filters = dl.Filters(use_defaults=False) )
+    adapter.embed_items(items=[item])
