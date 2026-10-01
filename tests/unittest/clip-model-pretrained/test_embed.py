@@ -7,8 +7,9 @@ from model_adapter import ClipAdapter
 
 
 class MockItem:
-    def __init__(self, mimetype):
+    def __init__(self, mimetype, item_type='file'):
         self.mimetype = mimetype
+        self.type = item_type
         self.name = f'Mock item {self.mimetype}'
         self.id = 1
 
