@@ -1,4 +1,4 @@
-FROM hub.dataloop.ai/dtlpy-runner-images/gpu:python3.10_cuda11.8_pytorch2
+FROM hub.dataloop.ai/dtlpy-runner-images/cpu:python3.13_full_bci
 
 # Install dependencies with no cache
 RUN pip install --no-cache-dir --user \
