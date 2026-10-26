@@ -103,6 +103,7 @@ class ClipAdapter(dl.BaseModelAdapter):
             self.model.encode_text(text)
         logger.info("Model warmed up successfully")
         logger.info(f"Loaded model CLIP {self.arch_name} successfully")
+        logger.info(f"Thread limits: OMP={os.environ.get('OMP_NUM_THREADS')} MKL={os.environ.get('MKL_NUM_THREADS')} OPENBLAS={os.environ.get('OPENBLAS_NUM_THREADS')} NUMEXPR={os.environ.get('NUMEXPR_NUM_THREADS')}")
 
     def save(self, local_path, **kwargs):
         """
