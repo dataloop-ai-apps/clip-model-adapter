@@ -130,7 +130,40 @@ class ClipAdapter(dl.BaseModelAdapter):
             logger.error(f"Error preparing item {item.id}: {type(e).__name__}: {e}")
             return None
 
-    def embed(self, batch, **kwargs):
+    def embed_items(
+        self, items: list, upload_features=None, batch_size=None, progress: dl.Progress = None, **kwargs
+    ):
+        """
+        Extract embeddings for a list of items, reporting the execution progress after every embedded batch.
+
+        The base implementation accepts `progress` but never updates it, so the execution jumps from 0 to 100.
+        The progress is capped at 99 because the feature vectors are uploaded after the last batch is embedded;
+        the platform sets 100 once the execution succeeds.
+        """
+        total = len(items)
+        state = {'done': 0, 'last_percent': -1}
+
+        def on_batch_embedded(batch_len):
+            state['done'] += batch_len
+            percent = min(99, int(100 * state['done'] / total))
+            if progress is None or percent == state['last_percent']:
+                return
+            state['last_percent'] = percent
+            try:
+                progress.update(progress=percent, message=f"embedded {state['done']}/{total} items")
+            except Exception as e:
+                logger.warning(f"Failed to update execution progress: {type(e).__name__}: {e}")
+
+        return super().embed_items(
+            items=items,
+            upload_features=upload_features,
+            batch_size=batch_size,
+            progress=progress,
+            on_batch_embedded=on_batch_embedded,
+            **kwargs,
+        )
+
+    def embed(self, batch, on_batch_embedded=None, **kwargs):
         embeddings = [None] * len(batch)
         image_batch = []
         text_batch = []
@@ -159,6 +192,8 @@ class ClipAdapter(dl.BaseModelAdapter):
                 text_embeddings = features.cpu().detach().numpy().tolist()
                 for index, embedding in zip(text_indicies, text_embeddings):
                     embeddings[index] = embedding
+        if on_batch_embedded is not None:
+            on_batch_embedded(len(batch))
         return embeddings
 
     def prepare_data(
